@@ -1,0 +1,195 @@
+// App.scss
+@use "sass:color";
+
+// Corporate Colors
+$primary-color: #1b9736;
+$primary-light: lighten($primary-color, 10%);
+$primary-dark: darken($primary-color, 10%);
+$text-color: #ffffff;
+$dark-bg: #fdfdfd;
+$card-bg: #ffffff;
+$success-color: #22c55e;
+$warning-color: #f59e0b;
+$error-color: #ef4444;
+$info-color: #3b82f6;
+
+// Layout
+$sidebar-width: 250px;
+$border-color: rgba(255, 255, 255, 0.1);
+
+// Breakpoints
+$breakpoints: (
+  'xs': 375px,
+  'sm': 640px,
+  'md': 768px,
+  'lg': 1024px,
+  'xl': 1280px,
+  '2xl': 1536px
+);
+
+// Mixins
+@mixin respond-to($breakpoint) {
+  @media (min-width: map-get($breakpoints, $breakpoint)) {
+    @content;
+  }
+}
+
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+}
+
+// Reset
+* {
+  margin: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: $dark-bg;
+  -webkit-font-smoothing: antialiased;
+}
+
+
+// Sidebar
+.sidebar {
+  width: $sidebar-width;
+  background: linear-gradient(180deg, $primary-dark 0%, $primary-color 100%);
+  position: fixed;
+  height: 100vh;
+  left: 0;
+  z-index: 1000;
+  transition: transform 0.3s ease;
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.2);
+
+  @media (max-width: map-get($breakpoints, 'md')) {
+    transform: translateX(-100%);
+    
+    &.open {
+      transform: translateX(0);
+    }
+  }
+}
+
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  
+  .company-logo {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1rem;
+    background-color: white;
+    border-radius: 12px;
+    padding: 0.5rem;
+    @include flex-center;
+    justify-content: center;
+    
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  .company-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .company-subtitle {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: center;
+  }
+}
+
+.sidebar-nav {
+  padding: 1rem 0.75rem;
+
+  a {
+    @include flex-center;
+    padding: 0.875rem 1rem;
+    color: $text-color;
+    text-decoration: none;
+    font-size: 0.9rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    margin-bottom: 0.25rem;
+
+    svg {
+      width: 20px;
+      height: 20px;
+      margin-right: 0.75rem;
+    }
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    &.active {
+      background-color: rgba(255, 255, 255, 0.15);
+      font-weight: 500;
+    }
+  }
+}
+
+.mobile-toggle {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1100;
+  background-color: $primary-color;
+  border: none;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: none;
+  @include flex-center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background-color: $primary-light;
+  }
+
+  @media (max-width: map-get($breakpoints, 'md')) {
+    display: flex;
+  }
+}
+
+.main-content {
+  margin-left: $sidebar-width;
+  transition: margin-left 0.3s ease;
+
+  @media (max-width: map-get($breakpoints, 'md')) {
+    margin-left: 0;
+    padding-top: 4rem;
+  }
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  backdrop-filter: blur(4px);
+
+  @media (max-width: map-get($breakpoints, 'md')) {
+    display: block;
+    
+    &.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+}
+
+@import './components/cremer';
+@import './pages/sala27';
