@@ -9,7 +9,7 @@ const modalComponents: Record<string, React.FC<{ open: boolean; onClose: () => v
 // Mapeo de máquinas a sus URLs de WebSocket
 const wsUrls: Record<string, string> = {
   "Cremer": "ws://192.168.20.10:8788",
-  "Monolab": "ws://192.168.20.11:8788",
+  "Monolab": "ws://192.168.20.11:8688",
   "Marquesini": "ws://192.168.20.12:8788",
   "Tecnomaco": "ws://192.168.20.13:8788",
   "Envasadora Polvo": "ws://192.168.20.25:8788",
