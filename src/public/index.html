@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Terminal de Operario</title>
+    <style>
+        /* Estilos generales */
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            touch-action: manipulation;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Cabecera */
+        .header {
+            background-color: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        /* Contenido principal con diseño de dos columnas */
+        .main-content {
+            flex: 1;
+            display: flex;
+            gap: 16px;
+            height: calc(100vh - 120px);
+            overflow: hidden;
+        }
+        
+        /* Panel lateral izquierdo */
+        .sidebar {
+            width: 300px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-header {
+            padding: 12px 16px;
+            font-weight: bold;
+            font-size: 18px;
+            border-bottom: 1px solid #e0e0e0;
+            background-color: #f5f5f5;
+        }
+        
+        /* Área de trabajo principal */
+        .workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        
+        /* Tarjetas de información */
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            padding: 12px;
+            font-weight: bold;
+            font-size: 18px;
+            color: white;
+        }
+        
+        .card-content {
+            padding: 16px;
+        }
+        
+        /* Botones */
+        .button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            min-height: 48px;
+            text-align: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+        
+        .button-sm {
+            padding: 8px 12px;
+            font-size: 14px;
+            min-height: 36px;
+        }
+        
+        .button-primary {
+            background-color: #1976d2;
+            color: white;
+        }
+        
+        .button-primary:hover {
+            background-color: #1565c0;
+        }
+        
+        .button-success {
+            background-color: #2e7d32;
+            color: white;
+        }
+        
+        .button-success:hover {
+            background-color: #1b5e20;
+        }
+        
+        .button-warning {
+            background-color: #ed6c02;
+            color: white;
+        }
+        
+        .button-warning:hover {
+            background-color: #e65100;
+        }
+        
+        .button-danger {
+            background-color: #d32f2f;
+            color: white;
+        }
+        
+        .button-danger:hover {
+            background-color: #c62828;
+        }
+        
+        .button-outline {
+            background-color: transparent;
+            border: 1px solid #1976d2;
+            color: #1976d2;
+        }
+        
+        .button-outline:hover {
+            background-color: rgba(25, 118, 210, 0.08);
+        }
+        
+        .button:disabled {
+            background-color: #cccccc;
+            color: #666666;
+            cursor: not-allowed;
+        }
+        
+        .button-container {
+            display: flex;
+            gap: 16px;
+        }
+        
+        .button-full {
+            flex: 1;
+        }
+        
+        /* Barra de progreso */
+        .progress-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 8px;
+            height: 16px;
+            margin: 16px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background-color: #1976d2;
+            border-radius: 8px;
+            transition: width 0.3s;
+        }
+        
+        /* Diálogos */
+        .dialog-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+        
+        .dialog-backdrop.visible {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .dialog {
+            background-color: white;
+            border-radius: 8px;
+            max-width: 90%;
+            width: 400px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        }
+        
+        .dialog-title {
+            padding: 16px;
+            font-size: 20px;
+            font-weight: bold;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .dialog-content {
+            padding: 16px;
+        }
+        
+        .dialog-actions {
+            padding: 16px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        /* Formulario */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+        }
+        
+        textarea.form-control {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        select.form-control {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            background-color: #fff;
+            margin-bottom: 12px;
+            appearance: menulist; /* Mostrar flecha de desplegable */
+        }
+        
+        select.form-control:focus {
+            outline: none;
+            border-color: #1976d2;
+        }
+        
+        /* Alertas */
+        .alert {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .alert.visible {
+            opacity: 1;
+        }
+        
+        .alert-success {
+            background-color: #2e7d32;
+        }
+        
+        .alert-error {
+            background-color: #d32f2f;
+        }
+        
+        .alert-warning {
+            background-color: #ed6c02;
+        }
+        
+        .alert-info {
+            background-color: #0288d1;
+        }
+        
+        /* Loader */
+        .loader {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+            display: none;
+        }
+        
+        .loading .loader {
+            display: inline-block;
+        }
+        
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        /* Lista de órdenes en la barra lateral */
+        .order-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .order-item {
+            background-color: white;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border-left: 4px solid #ccc;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .order-item:hover {
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            transform: translateY(-2px);
+        }
+        
+        .order-item.active {
+            border-left-color: #1976d2;
+            background-color: #f0f7ff;
+        }
+        
+        .order-item.pending {
+            border-left-color: #0288d1;
+        }
+        
+        .order-item.in-progress {
+            border-left-color: #2e7d32;
+        }
+        
+        .order-item.paused {
+            border-left-color: #ed6c02;
+        }
+        
+        .order-item.completed {
+            border-left-color: #616161;
+        }
+        
+        .order-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .order-item-title {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .order-item-subtitle {
+            color: #666666;
+            font-size: 14px;
+        }
+        
+        .order-item-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .order-item-actions {
+            display: flex;
+            gap: 6px;
+        }
+        
+        /* Estados */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .status-pending {
+            background-color: #0288d1;
+        }
+        
+        .status-active {
+            background-color: #2e7d32;
+        }
+        
+        .status-paused {
+            background-color: #ed6c02;
+        }
+        
+        .status-completed {
+            background-color: #616161;
+        }
+        
+        /* Pantalla de carga */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+        
+        .loading-screen.visible {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #1976d2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Pantallas específicas */
+        .screen {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            padding: 16px;
+        }
+        
+        .screen.active {
+            display: flex;
+        }
+        
+        .info-row {
+            display: flex;
+            margin-bottom: 8px;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            width: 100px;
+            flex-shrink: 0;
+        }
+        
+        .info-value {
+            flex: 1;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 32px;
+        }
+        
+        .empty-state-title {
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+        
+        .empty-state-subtitle {
+            color: #666666;
+            margin-bottom: 24px;
+        }
+        
+        /* Estilos para el indicador de pausa pendiente */
+        .header-notification {
+            width: 100%;
+            padding: 8px 0;
+            display: flex;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+        
+        .notification-badge {
+            background-color: #fff8e1;
+            border: 1px solid #ffcc80;
+            border-radius: 8px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .notification-dot {
+            width: 10px;
+            height: 10px;
+            background-color: #ed6c02;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(237, 108, 2, 0.7);
+            }
+            
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 6px rgba(237, 108, 2, 0);
+            }
+            
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(237, 108, 2, 0);
+            }
+        }
+        
+        /* Mensaje de selección */
+        .select-message {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .select-message h2 {
+            margin-bottom: 16px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <!-- Contenedor principal -->
+    <div class="container">
+        <!-- Cabecera -->
+        <div class="header">
+            <h1>Terminal de Producción</h1>
+            <div class="button-container">
+                <button id="refreshButton" class="button button-outline">
+                    Actualizar
+                    <div class="loader"></div>
+                </button>
+                <button id="createOrderButton" class="button button-primary">
+                    Nueva Orden
+                </button>
+            </div>
+        </div>
+        
+        <!-- Notificación de pausa pendiente -->
+        <div class="header-notification">
+            <div id="pendingPauseIndicator" class="notification-badge" style="display: none;">
+                <span class="notification-dot"></span>
+                <button id="justifyPauseButton" class="button button-warning">
+                    Justificar Pausa Pendiente
+                </button>
+            </div>
+        </div>
+
+        <!-- Contenido principal con diseño de dos columnas -->
+        <div class="main-content">
+            <!-- Panel lateral izquierdo -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    Órdenes de Producción
+                </div>
+                <div id="allOrdersList" class="order-list">
+                    <!-- Se cargarán dinámicamente todas las órdenes -->
+                </div>
+            </div>
+            
+            <!-- Área de trabajo principal -->
+            <div class="workspace">
+                <!-- Mensaje de selección inicial -->
+                <div id="selectOrderScreen" class="screen active">
+                    <div class="select-message">
+                        <h2>Seleccione una orden</h2>
+                        <p>Elija una orden del panel izquierdo para ver sus detalles y controlarla</p>
+                    </div>
+                </div>
+                
+                <!-- Pantalla de detalles y control de orden -->
+                <div id="orderDetailScreen" class="screen">
+                    <!-- Detalles de la orden -->
+                    <div class="card">
+                        <div class="card-content">
+                            <h2 id="orderTitle">Producto: --</h2>
+                            
+                            <div class="info-row">
+                                <div class="info-label">Estado:</div>
+                                <div id="orderStatus" class="info-value">--</div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-label">Objetivo:</div>
+                                <div id="orderQuantity" class="info-value">--</div>
+                            </div>
+                            
+                            <div>
+                                <div class="info-row">
+                                    <div class="info-label">Progreso:</div>
+                                    <div id="progressPercent" class="info-value">0%</div>
+                                </div>
+                                <div class="progress-container">
+                                    <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Botones de control -->
+                    <div class="card">
+                        <div class="card-content">
+                            <!-- Botones para orden pendiente -->
+                            <div id="pendingButtons" class="button-container" style="display: none;">
+                                <button id="startButton" class="button button-success button-full">
+                                    Iniciar
+                                </button>
+                            </div>
+                            
+                            <!-- Botones para orden activa -->
+                            <div id="activeButtons" class="button-container" style="display: none;">
+                                <button id="pauseButton" class="button button-warning button-full">
+                                    Pausar
+                                </button>
+                                <button id="finishButton" class="button button-danger button-full">
+                                    Finalizar
+                                </button>
+                            </div>
+                            
+                            <!-- Botones para orden pausada -->
+                            <div id="pausedButtons" class="button-container" style="display: none;">
+                                <button id="resumeButton" class="button button-success button-full">
+                                    Reanudar
+                                </button>
+                                <button id="finishPausedButton" class="button button-danger button-full">
+                                    Finalizar
+                                </button>
+                            </div>
+                            
+                            <!-- Botones para orden completada (solo ver detalles) -->
+                            <div id="completedButtons" class="button-container" style="display: none;">
+                                <div class="text-center" style="width: 100%; padding: 8px; color: #666;">
+                                    Esta orden ha sido completada
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diálogo: Crear Orden -->
+        <div id="createOrderDialog" class="dialog-backdrop">
+            <div class="dialog">
+                <div class="dialog-title">Crear Nueva Orden</div>
+                <div class="dialog-content">
+                    <div class="form-group">
+                        <label for="productInput">Producto:</label>
+                        <input type="text" id="productInput" class="form-control" placeholder="Nombre del producto">
+                    </div>
+                    <div class="form-group">
+                        <label for="quantityInput">Cantidad:</label>
+                        <input type="number" id="quantityInput" class="form-control" placeholder="Cantidad objetivo">
+                    </div>
+                </div>
+                <div class="dialog-actions">
+                    <button id="cancelCreateButton" class="button button-outline">
+                        Cancelar
+                    </button>
+                    <button id="confirmCreateButton" class="button button-primary">
+                        Crear
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Diálogo: Pausar Orden (Modificado con opciones) -->
+        <div id="pauseDialog" class="dialog-backdrop">
+            <div class="dialog">
+                <div class="dialog-title">Pausar Producción</div>
+                <div class="dialog-content">
+                    <div class="form-group">
+                        <label for="pauseReasonSelect">Tipo de pausa:</label>
+                        <select id="pauseReasonSelect" class="form-control">
+                            <option value="" disabled selected>Seleccione un motivo</option>
+                            <option value="mantenimiento">Mantenimiento</option>
+                            <option value="limpieza">Limpieza</option>
+                            <option value="atasco">Atasco</option>
+                            <option value="otros">Otros</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pauseReasonInput">Detalles adicionales:</label>
+                        <textarea id="pauseReasonInput" class="form-control" placeholder="Ingrese detalles adicionales sobre el motivo de la pausa"></textarea>
+                    </div>
+                </div>
+                <div class="dialog-actions">
+                    <button id="cancelPauseButton" class="button button-outline">
+                        Cancelar
+                    </button>
+                    <button id="confirmPauseButton" class="button button-warning">
+                        Pausar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Diálogo: Finalizar Orden -->
+        <div id="finishDialog" class="dialog-backdrop">
+            <div class="dialog">
+                <div class="dialog-title">Finalizar Producción</div>
+                <div class="dialog-content">
+                    <p>¿Está seguro de que desea finalizar esta producción?</p>
+                    <p style="color: #666;">Esta acción no se puede deshacer.</p>
+                </div>
+                <div class="dialog-actions">
+                    <button id="cancelFinishButton" class="button button-outline">
+                        Cancelar
+                    </button>
+                    <button id="confirmFinishButton" class="button button-danger">
+                        Finalizar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Diálogo: Justificar pausa pendiente (Modificado con opciones) -->
+        <div id="justifyPauseDialog" class="dialog-backdrop">
+            <div class="dialog">
+                <div class="dialog-title">Justificar Pausa Pendiente</div>
+                <div class="dialog-content">
+                    <div class="form-group">
+                        <p style="color: #ed6c02; margin-bottom: 12px;">
+                            <strong>Hay una pausa automática pendiente de justificación.</strong>
+                        </p>
+                        <p style="margin-bottom: 16px;">
+                            Por favor, indique el motivo específico que causó la inactividad:
+                        </p>
+                        
+                        <label for="justifyPauseSelect">Tipo de pausa:</label>
+                        <select id="justifyPauseSelect" class="form-control">
+                            <option value="" disabled selected>Seleccione un motivo</option>
+                            <option value="mantenimiento">Mantenimiento</option>
+                            <option value="limpieza">Limpieza</option>
+                            <option value="atasco">Atasco</option>
+                            <option value="otros">Otros</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="justifyPauseInput">Detalles adicionales:</label>
+                        <textarea id="justifyPauseInput" class="form-control" placeholder="Ingrese detalles adicionales sobre el motivo de la pausa"></textarea>
+                    </div>
+                </div>
+                <div class="dialog-actions">
+                    <button id="cancelJustifyButton" class="button button-outline">
+                        Cancelar
+                    </button>
+                    <button id="confirmJustifyButton" class="button button-primary">
+                        Guardar justificación
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alerta -->
+        <div id="alert" class="alert">
+            Mensaje de alerta
+        </div>
+        
+        <!-- Pantalla de carga -->
+        <div id="loadingScreen" class="loading-screen">
+            <div class="spinner"></div>
+        </div>
+    </div>
+    <script>
+        // Configuración
+        const API_BASE_URL = 'http://192.168.11.116:3000/api';
+        
+        // Elementos DOM
+        const selectOrderScreen = document.getElementById('selectOrderScreen');
+        const orderDetailScreen = document.getElementById('orderDetailScreen');
+        const allOrdersList = document.getElementById('allOrdersList');
+        const createOrderButton = document.getElementById('createOrderButton');
+        const refreshButton = document.getElementById('refreshButton');
+        
+        // Elementos de orden activa
+        const orderTitle = document.getElementById('orderTitle');
+        const orderStatus = document.getElementById('orderStatus');
+        const orderQuantity = document.getElementById('orderQuantity');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        
+        // Contenedores de botones de control
+        const pendingButtons = document.getElementById('pendingButtons');
+        const activeButtons = document.getElementById('activeButtons');
+        const pausedButtons = document.getElementById('pausedButtons');
+        const completedButtons = document.getElementById('completedButtons');
+        
+        // Botones de control
+        const startButton = document.getElementById('startButton');
+        const pauseButton = document.getElementById('pauseButton');
+        const finishButton = document.getElementById('finishButton');
+        const resumeButton = document.getElementById('resumeButton');
+        const finishPausedButton = document.getElementById('finishPausedButton');
+        
+        // Diálogos
+        const createOrderDialog = document.getElementById('createOrderDialog');
+        const pauseDialog = document.getElementById('pauseDialog');
+        const finishDialog = document.getElementById('finishDialog');
+        const justifyPauseDialog = document.getElementById('justifyPauseDialog');
+        
+        // Campos de formulario
+        const productInput = document.getElementById('productInput');
+        const quantityInput = document.getElementById('quantityInput');
+        const pauseReasonSelect = document.getElementById('pauseReasonSelect');
+        const pauseReasonInput = document.getElementById('pauseReasonInput');
+        const justifyPauseSelect = document.getElementById('justifyPauseSelect');
+        const justifyPauseInput = document.getElementById('justifyPauseInput');
+        
+        // Botones de diálogo
+        const cancelCreateButton = document.getElementById('cancelCreateButton');
+        const confirmCreateButton = document.getElementById('confirmCreateButton');
+        const cancelPauseButton = document.getElementById('cancelPauseButton');
+        const confirmPauseButton = document.getElementById('confirmPauseButton');
+        const cancelFinishButton = document.getElementById('cancelFinishButton');
+        const confirmFinishButton = document.getElementById('confirmFinishButton');
+        const justifyPauseButton = document.getElementById('justifyPauseButton');
+        const cancelJustifyButton = document.getElementById('cancelJustifyButton');
+        const confirmJustifyButton = document.getElementById('confirmJustifyButton');
+        
+        // Indicador de pausa pendiente
+        const pendingPauseIndicator = document.getElementById('pendingPauseIndicator');
+        
+        // Alerts y pantalla de carga
+        const alert = document.getElementById('alert');
+        const loadingScreen = document.getElementById('loadingScreen');
+        
+        // Estado de la aplicación
+        let selectedOrder = null;
+        let orders = [];
+        let refreshInterval = null;
+        let activeOrders = {}; // Almacena los temporizadores para las órdenes activas
+        
+        // Temporizador de inactividad
+        let inactivityTimer = null;
+        const INACTIVITY_TIMEOUT = 60000; // 60 segundos en milisegundos
+        let pendingPauseId = null; // Para almacenar el ID de pausas pendientes de justificar
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', init);
+
+        function init() {
+            console.log('Inicializando aplicación...');
+            
+            // Cargar datos iniciales
+            loadOrders();
+            
+// Configurar actualización periódica
+refreshInterval = setInterval(refreshData, 10000);
+            
+            // Event listeners para botones principales
+            refreshButton.addEventListener('click', function() {
+                console.log('Botón de actualizar clickeado');
+                refreshData();
+            });
+            
+            createOrderButton.addEventListener('click', function() {
+                console.log('Botón de crear orden clickeado');
+                showDialog(createOrderDialog);
+            });
+            
+            // Botones de control para órdenes
+            startButton.addEventListener('click', function() {
+                console.log('Botón de iniciar clickeado');
+                if (selectedOrder) {
+                    startProduction(selectedOrder.id);
+                } else {
+                    showAlert('No hay orden seleccionada', 'error');
+                }
+            });
+            
+            pauseButton.addEventListener('click', function() {
+                console.log('Botón de pausar clickeado');
+                if (selectedOrder && selectedOrder.status === 'active') {
+                    showDialog(pauseDialog);
+                } else {
+                    showAlert('Solo se pueden pausar órdenes activas', 'warning');
+                }
+            });
+            
+            finishButton.addEventListener('click', function() {
+                console.log('Botón de finalizar clickeado');
+                if (selectedOrder && selectedOrder.status === 'active') {
+                    showDialog(finishDialog);
+                } else {
+                    showAlert('Solo se pueden finalizar órdenes activas', 'warning');
+                }
+            });
+            
+            resumeButton.addEventListener('click', function() {
+                console.log('Botón de reanudar clickeado');
+                if (selectedOrder && selectedOrder.status === 'paused') {
+                    resumeProduction();
+                } else {
+                    showAlert('Solo se pueden reanudar órdenes pausadas', 'warning');
+                }
+            });
+            
+            finishPausedButton.addEventListener('click', function() {
+                console.log('Botón de finalizar pausada clickeado');
+                if (selectedOrder && selectedOrder.status === 'paused') {
+                    showDialog(finishDialog);
+                } else {
+                    showAlert('Solo se pueden finalizar órdenes pausadas', 'warning');
+                }
+            });
+            
+            // Botones de diálogo de creación
+            cancelCreateButton.addEventListener('click', function() {
+                console.log('Cancelar creación clickeado');
+                hideDialog(createOrderDialog);
+            });
+            
+            confirmCreateButton.addEventListener('click', function() {
+                console.log('Confirmar creación clickeado');
+                createOrder();
+            });
+            
+            // Botones de diálogo de pausa
+            cancelPauseButton.addEventListener('click', function() {
+                console.log('Cancelar pausa clickeado');
+                hideDialog(pauseDialog);
+            });
+            
+            confirmPauseButton.addEventListener('click', function() {
+                console.log('Confirmar pausa clickeado');
+                pauseProduction();
+            });
+            
+            // Botones de diálogo de finalización
+            cancelFinishButton.addEventListener('click', function() {
+                console.log('Cancelar finalización clickeado');
+                hideDialog(finishDialog);
+            });
+            
+            confirmFinishButton.addEventListener('click', function() {
+                console.log('Confirmar finalización clickeado');
+                finishProduction();
+            });
+            
+            // Botones para justificar pausas pendientes
+            justifyPauseButton.addEventListener('click', function() {
+                console.log('Justificar pausa clickeado');
+                if (pendingPauseId) {
+                    showDialog(justifyPauseDialog);
+                } else {
+                    showAlert('No hay pausas pendientes de justificar', 'info');
+                }
+            });
+            
+            confirmJustifyButton.addEventListener('click', function() {
+                console.log('Confirmar justificación clickeado');
+                submitPauseJustification();
+            });
+            
+            cancelJustifyButton.addEventListener('click', function() {
+                console.log('Cancelar justificación clickeado');
+                hideDialog(justifyPauseDialog);
+            });
+            
+            // Verificar si hay pausas pendientes por justificar al cargar
+            checkPendingPauses();
+            
+            // Configurar validaciones para los selectores de motivos
+            setupReasonValidations();
+            
+            console.log('Aplicación inicializada correctamente');
+        }
+        // ===== Funciones para gestionar el temporizador de inactividad =====
+
+        // Reiniciar temporizador cuando hay actividad
+        function resetInactivityTimer(orderId) {
+            if (!orderId || !activeOrders[orderId]) return;
+            
+            console.log(`Reseteando temporizador para orden ${orderId}`);
+            
+            // Limpiar temporizador existente
+            if (activeOrders[orderId].timer) {
+                clearTimeout(activeOrders[orderId].timer);
+            }
+            
+            // Establecer nuevo temporizador
+            activeOrders[orderId].timer = setTimeout(() => {
+                // Solo pausar automáticamente si la orden sigue activa
+                const order = orders.find(o => o.id === orderId);
+                if (order && order.status === 'active') {
+                    console.log(`Inactividad detectada para orden ${orderId}`);
+                    autoPauseProduction(orderId);
+                }
+            }, INACTIVITY_TIMEOUT);
+        }
+
+        // Pausar automáticamente la producción
+        async function autoPauseProduction(orderId) {
+            try {
+                console.log(`Pausando automáticamente orden ${orderId}`);
+                showLoading(true);
+                
+                // Pausar con un motivo temporal/genérico
+                const response = await fetch(`${API_BASE_URL}/orders/${orderId}/pause`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        reason: "Pausa automática por inactividad - Pendiente de justificación"
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Guardar el ID de la pausa para justificarla después
+                    pendingPauseId = data.data.pause.id;
+                    console.log(`Pausa pendiente creada con ID: ${pendingPauseId}`);
+                    
+                    // Guardar en localStorage para recuperar en futuras sesiones
+                    savePendingPauseToStorage(pendingPauseId);
+                    
+                    // Mostrar notificación
+                    const productName = data.data.order.product || 'Orden';
+                    showAlert(`Producción "${productName}" pausada automáticamente por inactividad. Justificar la pausa.`, 'warning');
+                    
+                    // Actualizar UI
+                    await loadOrders();
+                    
+                    // Mostrar indicador de pausa pendiente
+                    updatePendingPauseIndicator(true);
+                }
+            } catch (error) {
+                console.error('Error al realizar pausa automática:', error);
+                showAlert('Error al pausar automáticamente', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        // ===== Funciones para gestionar pausas pendientes =====
+
+        // Guardar pausa pendiente en localStorage
+        function savePendingPauseToStorage(pauseId) {
+            try {
+                const pendingPauses = JSON.parse(localStorage.getItem('pendingPauses') || '[]');
+                pendingPauses.push(pauseId);
+                localStorage.setItem('pendingPauses', JSON.stringify(pendingPauses));
+                console.log(`Pausa ${pauseId} guardada en localStorage`);
+            } catch (error) {
+                console.error('Error al guardar pausa pendiente:', error);
+            }
+        }
+
+        // Eliminar pausa pendiente del localStorage
+        function removePendingPauseFromStorage(pauseId) {
+            try {
+                let pendingPauses = JSON.parse(localStorage.getItem('pendingPauses') || '[]');
+                pendingPauses = pendingPauses.filter(id => id !== pauseId);
+                localStorage.setItem('pendingPauses', JSON.stringify(pendingPauses));
+                console.log(`Pausa ${pauseId} eliminada de localStorage`);
+            } catch (error) {
+                console.error('Error al eliminar pausa pendiente:', error);
+            }
+        }
+
+        // Verificar si hay pausas pendientes por justificar
+        async function checkPendingPauses() {
+            try {
+                const pendingPauses = JSON.parse(localStorage.getItem('pendingPauses') || '[]');
+                console.log(`Verificando pausas pendientes. Encontradas: ${pendingPauses.length}`);
+                
+                if (pendingPauses.length > 0) {
+                    // Tomar la más reciente
+                    pendingPauseId = pendingPauses[pendingPauses.length - 1];
+                    updatePendingPauseIndicator(true);
+                } else {
+                    pendingPauseId = null;
+                    updatePendingPauseIndicator(false);
+                }
+            } catch (error) {
+                console.error('Error al verificar pausas pendientes:', error);
+            }
+        }
+
+        // Actualizar el indicador visual de pausas pendientes
+        function updatePendingPauseIndicator(hasPending) {
+            if (pendingPauseIndicator) {
+                pendingPauseIndicator.style.display = hasPending ? 'flex' : 'none';
+                console.log(`Indicador de pausa pendiente: ${hasPending ? 'visible' : 'oculto'}`);
+            }
+        }
+
+        // Enviar justificación para una pausa pendiente
+        async function submitPauseJustification() {
+            const reasonType = justifyPauseSelect.value;
+            const reasonDetails = justifyPauseInput.value.trim();
+            
+            if (!reasonType) {
+                showAlert('Seleccione un tipo de pausa', 'warning');
+                return;
+            }
+            
+            // Formatear el motivo con el tipo seleccionado y los detalles
+            let formattedReason;
+            if (reasonType === 'otros') {
+                // Para "Otros", los detalles son obligatorios
+                if (!reasonDetails) {
+                    showAlert('Ingrese detalles para el motivo "Otros"', 'warning');
+                    return;
+                }
+                formattedReason = `Otros: ${reasonDetails}`;
+            } else {
+                // Para los tipos predefinidos, los detalles son opcionales
+                formattedReason = reasonType.charAt(0).toUpperCase() + reasonType.slice(1);
+                if (reasonDetails) {
+                    formattedReason += ` - ${reasonDetails}`;
+                }
+            }
+            
+            if (!pendingPauseId) {
+                showAlert('No hay pausas pendientes para justificar', 'error');
+                hideDialog(justifyPauseDialog);
+                return;
+            }
+            
+            console.log(`Enviando justificación para pausa ${pendingPauseId}: ${formattedReason}`);
+            
+            try {
+                showLoading(true);
+                
+                // Usar el endpoint existente para actualizar el motivo
+                const response = await fetch(`${API_BASE_URL}/pauses/${pendingPauseId}/reason`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        reason: formattedReason
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('Justificación enviada con éxito');
+                    
+                    // Limpiar variables y storage
+                    removePendingPauseFromStorage(pendingPauseId);
+                    pendingPauseId = null;
+                    
+                    // Verificar si quedan más pausas pendientes
+                    checkPendingPauses();
+                    
+                    // Mostrar confirmación
+                    showAlert('Justificación registrada correctamente', 'success');
+                    hideDialog(justifyPauseDialog);
+                    
+                    // Limpiar campos del formulario
+                    justifyPauseSelect.selectedIndex = 0;
+                    justifyPauseInput.value = '';
+                }
+            } catch (error) {
+                console.error('Error al justificar pausa:', error);
+                showAlert('Error al enviar justificación', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Función para configurar las validaciones de los motivos
+        function setupReasonValidations() {
+            // Para el diálogo de pausa manual
+            pauseReasonSelect.addEventListener('change', function() {
+                if (this.value === 'otros') {
+                    pauseReasonInput.placeholder = "Detalles obligatorios para el motivo 'Otros'";
+                    pauseReasonInput.setAttribute('required', 'required');
+                } else {
+                    pauseReasonInput.placeholder = "Detalles adicionales (opcional)";
+                    pauseReasonInput.removeAttribute('required');
+                }
+            });
+            
+            // Para el diálogo de justificación
+            justifyPauseSelect.addEventListener('change', function() {
+                if (this.value === 'otros') {
+                    justifyPauseInput.placeholder = "Detalles obligatorios para el motivo 'Otros'";
+                    justifyPauseInput.setAttribute('required', 'required');
+                } else {
+                    justifyPauseInput.placeholder = "Detalles adicionales (opcional)";
+                    justifyPauseInput.removeAttribute('required');
+                }
+            });
+        }
+        // ===== Funciones API =====
+
+        async function loadOrders() {
+            try {
+                console.log('Cargando órdenes...');
+                showLoading(true);
+                
+                const response = await fetch(`${API_BASE_URL}/orders`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    orders = data.data;
+                    console.log(`${orders.length} órdenes cargadas correctamente`);
+                    
+                    // Actualizar la lista de órdenes en el panel lateral
+                    updateOrdersList();
+                    
+                    // Si hay una orden seleccionada, actualizar sus detalles
+                    if (selectedOrder) {
+                        const updatedOrder = orders.find(order => order.id === selectedOrder.id);
+                        if (updatedOrder) {
+                            selectedOrder = updatedOrder;
+                            updateOrderDetailUI();
+                        } else {
+                            // La orden seleccionada ya no existe
+                            selectedOrder = null;
+                            showSelectOrderScreen();
+                        }
+                    }
+                    
+                    // Configurar temporizadores para las órdenes activas
+                    setupActiveOrdersTimers();
+                }
+            } catch (error) {
+                console.error('Error al cargar órdenes:', error);
+                showAlert('Error al cargar órdenes', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Configurar temporizadores para las órdenes activas
+        function setupActiveOrdersTimers() {
+            // Limpiar temporizadores existentes
+            for (const orderId in activeOrders) {
+                if (activeOrders[orderId].timer) {
+                    clearTimeout(activeOrders[orderId].timer);
+                }
+            }
+            
+            // Inicializar el objeto activeOrders
+            activeOrders = {};
+            
+            // Configurar temporizadores para las órdenes activas
+            const activeOrdersList = orders.filter(order => order.status === 'active');
+            console.log(`Configurando temporizadores para ${activeOrdersList.length} órdenes activas`);
+            
+            activeOrdersList.forEach(order => {
+                activeOrders[order.id] = {
+                    timer: null,
+                    lastCount: order.countGood + order.countBad
+                };
+                
+                // Iniciar temporizador
+                resetInactivityTimer(order.id);
+            });
+        }
+
+        async function refreshData() {
+            try {
+                console.log('Actualizando datos...');
+                refreshButton.classList.add('loading');
+                
+                // Actualizar todas las órdenes
+                const response = await fetch(`${API_BASE_URL}/orders`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    orders = data.data;
+                    
+                    // Actualizar la lista de órdenes
+                    updateOrdersList();
+                    
+                    // Si hay una orden seleccionada, actualizar sus detalles
+                    if (selectedOrder) {
+                        const updatedOrder = orders.find(order => order.id === selectedOrder.id);
+                        if (updatedOrder) {
+                            // Verificar si hay cambios en los contadores
+                            const previousTotal = selectedOrder.countGood + selectedOrder.countBad;
+                            const currentTotal = updatedOrder.countGood + updatedOrder.countBad;
+                            
+                            // Actualizar la orden seleccionada
+                            selectedOrder = updatedOrder;
+                            updateOrderDetailUI();
+                            
+                            // Si la orden está activa y hay cambios en los contadores, reiniciar el temporizador
+                            if (selectedOrder.status === 'active' && currentTotal > previousTotal) {
+                                console.log(`Actividad detectada en orden ${selectedOrder.id}`);
+                                resetInactivityTimer(selectedOrder.id);
+                            }
+                        }
+                    }
+                    
+                    // Verificar cambios en los contadores de todas las órdenes activas
+                    orders.filter(order => order.status === 'active').forEach(order => {
+                        if (activeOrders[order.id]) {
+                            const currentTotal = order.countGood + order.countBad;
+                            if (currentTotal > activeOrders[order.id].lastCount) {
+                                console.log(`Actividad detectada en orden ${order.id}`);
+                                // Actualizar el último contador y reiniciar el temporizador
+                                activeOrders[order.id].lastCount = currentTotal;
+                                resetInactivityTimer(order.id);
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error al actualizar datos:', error);
+            } finally {
+                refreshButton.classList.remove('loading');
+            }
+        }
+
+        async function createOrder() {
+            const product = productInput.value.trim();
+            const quantity = parseInt(quantityInput.value);
+            
+            if (!product) {
+                showAlert('El nombre del producto es obligatorio', 'warning');
+                return;
+            }
+            
+            if (!quantity || isNaN(quantity) || quantity <= 0) {
+                showAlert('Ingrese una cantidad válida', 'warning');
+                return;
+            }
+            
+            console.log(`Creando orden para ${product} con cantidad ${quantity}`);
+            
+            try {
+                showLoading(true);
+                
+                const response = await fetch(`${API_BASE_URL}/orders`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        product: product,
+                        quantity: quantity
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('Orden creada con éxito');
+                    showAlert('Orden creada con éxito', 'success');
+                    hideDialog(createOrderDialog);
+                    productInput.value = '';
+                    quantityInput.value = '';
+                    
+                    // Cargar las órdenes y seleccionar la recién creada
+                    await loadOrders();
+                    
+                    // Seleccionar la orden recién creada
+                    const newOrder = orders.find(order => order.product === product && order.quantity === quantity);
+                    if (newOrder) {
+                        selectOrder(newOrder);
+                    }
+                } else {
+                    console.error('Error al crear orden:', data.message || 'Error desconocido');
+                    showAlert(data.message || 'Error al crear la orden', 'error');
+                }
+            } catch (error) {
+                console.error('Error al crear orden:', error);
+                showAlert('Error al crear la orden', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function startProduction(orderId) {
+            console.log(`Iniciando producción para orden ${orderId}`);
+            try {
+                showLoading(true);
+                
+                const response = await fetch(`${API_BASE_URL}/orders/${orderId}/start`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('Producción iniciada con éxito');
+                    showAlert('Producción iniciada', 'success');
+                    
+                    // Actualizar la orden en la lista y seleccionarla
+                    await loadOrders();
+                    const startedOrder = orders.find(order => order.id === orderId);
+                    if (startedOrder) {
+                        selectOrder(startedOrder);
+                        
+                        // Iniciar temporizador de inactividad
+                        if (!activeOrders[orderId]) {
+                            activeOrders[orderId] = {
+                                timer: null,
+                                lastCount: startedOrder.countGood + startedOrder.countBad
+                            };
+                        }
+                        resetInactivityTimer(orderId);
+                    }
+                } else {
+                    console.error('Error al iniciar producción:', data.message || 'Error desconocido');
+                    showAlert(data.message || 'Error al iniciar producción', 'error');
+                }
+            } catch (error) {
+                console.error('Error al iniciar producción:', error);
+                showAlert('Error al iniciar producción', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function pauseProduction() {
+            if (!selectedOrder) {
+                showAlert('No hay orden seleccionada', 'error');
+                return;
+            }
+            
+            const reasonType = pauseReasonSelect.value;
+            const reasonDetails = pauseReasonInput.value.trim();
+            
+            if (!reasonType) {
+                showAlert('Seleccione un tipo de pausa', 'warning');
+                return;
+            }
+            
+            // Formatear el motivo con el tipo seleccionado y los detalles
+            let formattedReason;
+            if (reasonType === 'otros') {
+                // Para "Otros", los detalles son obligatorios
+                if (!reasonDetails) {
+                    showAlert('Ingrese detalles para el motivo "Otros"', 'warning');
+                    return;
+                }
+                formattedReason = `Otros: ${reasonDetails}`;
+            } else {
+                // Para los tipos predefinidos, los detalles son opcionales
+                formattedReason = reasonType.charAt(0).toUpperCase() + reasonType.slice(1);
+                if (reasonDetails) {
+                    formattedReason += ` - ${reasonDetails}`;
+                }
+            }
+            
+            console.log(`Pausando orden ${selectedOrder.id} con motivo: ${formattedReason}`);
+            
+            try {
+                showLoading(true);
+                
+                const response = await fetch(`${API_BASE_URL}/orders/${selectedOrder.id}/pause`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        reason: formattedReason
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('Producción pausada con éxito');
+                    showAlert('Producción pausada', 'success');
+                    hideDialog(pauseDialog);
+                    
+                    // Limpiar campos del formulario
+                    pauseReasonSelect.selectedIndex = 0;
+                    pauseReasonInput.value = '';
+                    
+                    // Detener el temporizador de inactividad
+                    if (activeOrders[selectedOrder.id] && activeOrders[selectedOrder.id].timer) {
+                        clearTimeout(activeOrders[selectedOrder.id].timer);
+                    }
+                    
+                    // Actualizar la orden en la lista
+                    await loadOrders();
+                    
+                    // Actualizar la orden seleccionada
+                    const pausedOrder = orders.find(order => order.id === selectedOrder.id);
+                    if (pausedOrder) {
+                        selectOrder(pausedOrder);
+                    }
+                } else {
+                    console.error('Error al pausar producción:', data.message || 'Error desconocido');
+                    showAlert(data.message || 'Error al pausar producción', 'error');
+                }
+            } catch (error) {
+                console.error('Error al pausar producción:', error);
+                showAlert('Error al pausar producción', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function resumeProduction() {
+            if (!selectedOrder) {
+                showAlert('No hay orden seleccionada', 'error');
+                return;
+            }
+            
+            console.log(`Reanudando orden ${selectedOrder.id}`);
+            
+            try {
+                showLoading(true);
+                
+                const response = await fetch(`${API_BASE_URL}/orders/${selectedOrder.id}/resume`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('Producción reanudada con éxito');
+                    showAlert('Producción reanudada', 'success');
+                    
+                    // Actualizar la orden en la lista
+                    await loadOrders();
+                    
+                    // Actualizar la orden seleccionada
+                    const resumedOrder = orders.find(order => order.id === selectedOrder.id);
+                    if (resumedOrder) {
+                        selectOrder(resumedOrder);
+                        
+                        // Reiniciar temporizador al reanudar
+                        if (!activeOrders[selectedOrder.id]) {
+                            activeOrders[selectedOrder.id] = {
+                                timer: null,
+                                lastCount: resumedOrder.countGood + resumedOrder.countBad
+                            };
+                        }
+                        resetInactivityTimer(selectedOrder.id);
+                    }
+                } else {
+                    console.error('Error al reanudar producción:', data.message || 'Error desconocido');
+                    showAlert(data.message || 'Error al reanudar producción', 'error');
+                }
+            } catch (error) {
+                console.error('Error al reanudar producción:', error);
+                showAlert('Error al reanudar producción', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function finishProduction() {
+            if (!selectedOrder) {
+                showAlert('No hay orden seleccionada', 'error');
+                return;
+            }
+            
+            console.log(`Finalizando orden ${selectedOrder.id}`);
+            
+            try {
+                showLoading(true);
+                
+                const response = await fetch(`${API_BASE_URL}/orders/${selectedOrder.id}/finish`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('Producción finalizada con éxito');
+                    showAlert('Producción finalizada', 'success');
+                    hideDialog(finishDialog);
+                    
+                    // Detener el temporizador de inactividad si existe
+                    if (activeOrders[selectedOrder.id] && activeOrders[selectedOrder.id].timer) {
+                        clearTimeout(activeOrders[selectedOrder.id].timer);
+                        delete activeOrders[selectedOrder.id];
+                    }
+                    
+                    // Actualizar la lista de órdenes
+                    await loadOrders();
+                    
+                    // Actualizar la orden seleccionada para mostrar su estado final
+                    const finishedOrder = orders.find(order => order.id === selectedOrder.id);
+                    if (finishedOrder) {
+                        selectOrder(finishedOrder);
+                    }
+                } else {
+                    console.error('Error al finalizar producción:', data.message || 'Error desconocido');
+                    showAlert(data.message || 'Error al finalizar producción', 'error');
+                }
+            } catch (error) {
+                console.error('Error al finalizar producción:', error);
+                showAlert('Error al finalizar producción', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }// ===== Funciones de UI =====
+
+        // Actualizar la lista de órdenes en el panel lateral
+        function updateOrdersList() {
+            allOrdersList.innerHTML = '';
+            
+            if (orders.length === 0) {
+                allOrdersList.innerHTML = `
+                    <div class="text-center" style="padding: 20px; color: #666;">
+                        No hay órdenes disponibles
+                    </div>
+                `;
+                return;
+            }
+            
+            // Ordenar las órdenes: primero activas, luego pausadas, luego pendientes, finalmente completadas
+            const sortedOrders = [...orders].sort((a, b) => {
+                const orderValue = {
+                    'active': 0,
+                    'paused': 1,
+                    'pending': 2,
+                    'completed': 3
+                };
+                return orderValue[a.status] - orderValue[b.status];
+            });
+            
+            sortedOrders.forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.className = `order-item ${order.status === 'active' ? 'in-progress' : order.status}`;
+                
+                // Agregar clase 'active' si es la orden seleccionada
+                if (selectedOrder && order.id === selectedOrder.id) {
+                    orderElement.classList.add('active');
+                }
+                
+                // Determinar el etiqueta de estado
+                let statusBadge = '';
+                switch(order.status) {
+                    case 'pending':
+                        statusBadge = '<span class="status-badge status-pending">Pendiente</span>';
+                        break;
+                    case 'active':
+                        statusBadge = '<span class="status-badge status-active">En Producción</span>';
+                        break;
+                    case 'paused':
+                        statusBadge = '<span class="status-badge status-paused">Pausada</span>';
+                        break;
+                    case 'completed':
+                    statusBadge = '<span class="status-badge status-completed">Finalizada</span>';
+                        break;
+                }
+                
+                // Calcular progreso
+                const total = order.countGood + order.countBad;
+                const progress = Math.min((total / order.quantity) * 100, 100).toFixed(1);
+                
+                orderElement.innerHTML = `
+                    <div class="order-item-header">
+                        <div class="order-item-title">${order.product}</div>
+                        ${statusBadge}
+                    </div>
+                    <div class="order-item-subtitle">
+                        Objetivo: ${order.quantity} | Progreso: ${progress}%
+                    </div>
+                `;
+                
+                // Agregar evento click para seleccionar esta orden
+                orderElement.addEventListener('click', () => {
+                    console.log(`Orden ${order.id} seleccionada`);
+                    selectOrder(order);
+                });
+                
+                allOrdersList.appendChild(orderElement);
+            });
+        }
+
+        // Seleccionar una orden y mostrar sus detalles
+        function selectOrder(order) {
+            selectedOrder = order;
+            
+            // Actualizar la UI para mostrar la orden seleccionada
+            updateOrdersList(); // Para actualizar la clase 'active' en la lista lateral
+            updateOrderDetailUI();
+            
+            // Mostrar la pantalla de detalles
+            selectOrderScreen.classList.remove('active');
+            orderDetailScreen.classList.add('active');
+        }
+
+        // Mostrar la pantalla de selección de orden
+        function showSelectOrderScreen() {
+            selectOrderScreen.classList.add('active');
+            orderDetailScreen.classList.remove('active');
+        }
+
+        // Actualizar la UI con los detalles de la orden seleccionada
+        function updateOrderDetailUI() {
+            if (!selectedOrder) return;
+            
+            console.log(`Actualizando UI para orden ${selectedOrder.id}, estado: ${selectedOrder.status}`);
+            
+            // Actualizar información de la orden
+            orderTitle.textContent = `Producto: ${selectedOrder.product}`;
+            orderQuantity.textContent = `${selectedOrder.quantity} unidades`;
+            
+            // Actualizar estado
+            let statusText = '';
+            switch(selectedOrder.status) {
+                case 'pending':
+                    statusText = '<span class="status-badge status-pending">Pendiente</span>';
+                    pendingButtons.style.display = 'flex';
+                    activeButtons.style.display = 'none';
+                    pausedButtons.style.display = 'none';
+                    completedButtons.style.display = 'none';
+                    break;
+                case 'active':
+                    statusText = '<span class="status-badge status-active">En Producción</span>';
+                    pendingButtons.style.display = 'none';
+                    activeButtons.style.display = 'flex';
+                    pausedButtons.style.display = 'none';
+                    completedButtons.style.display = 'none';
+                    break;
+                case 'paused':
+                    statusText = '<span class="status-badge status-paused">Pausada</span>';
+                    pendingButtons.style.display = 'none';
+                    activeButtons.style.display = 'none';
+                    pausedButtons.style.display = 'flex';
+                    completedButtons.style.display = 'none';
+                    break;
+                case 'completed':
+                    statusText = '<span class="status-badge status-completed">Finalizada</span>';
+                    pendingButtons.style.display = 'none';
+                    activeButtons.style.display = 'none';
+                    pausedButtons.style.display = 'none';
+                    completedButtons.style.display = 'flex';
+                    break;
+                default:
+                    statusText = selectedOrder.status;
+            }
+            orderStatus.innerHTML = statusText;
+            
+            // Actualizar progreso
+            updateProgress();
+        }
+
+        // Actualizar la barra de progreso
+        function updateProgress() {
+            if (!selectedOrder) return;
+            
+            // Calcular progreso
+            const total = selectedOrder.countGood + selectedOrder.countBad;
+            const progress = Math.min((total / selectedOrder.quantity) * 100, 100);
+            progressBar.style.width = `${progress}%`;
+            progressPercent.textContent = `${progress.toFixed(1)}%`;
+        }
+        // ===== Funciones de utilidad =====
+
+        function showDialog(dialog) {
+            dialog.classList.add('visible');
+            console.log('Diálogo mostrado');
+        }
+
+        function hideDialog(dialog) {
+            dialog.classList.remove('visible');
+            console.log('Diálogo ocultado');
+        }
+
+        function showAlert(message, type) {
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alert.classList.add('visible');
+            
+            console.log(`Alerta mostrada: ${message} (${type})`);
+            
+            // Ocultar después de 3 segundos
+            setTimeout(() => {
+                alert.classList.remove('visible');
+            }, 3000);
+        }
+
+        function showLoading(show) {
+            if (show) {
+                loadingScreen.classList.add('visible');
+            } else {
+                loadingScreen.classList.remove('visible');
+            }
+        }
+    </script>
+</body>
+</html>
