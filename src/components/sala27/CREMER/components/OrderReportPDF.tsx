@@ -6,7 +6,7 @@ import {
   View, 
   StyleSheet, 
   BlobProvider,
-  Font
+  Image
 } from '@react-pdf/renderer';
 import { Button } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -80,7 +80,10 @@ interface PDFDownloadButtonProps {
   formatTimestamp: (timestamp?: string) => string;
 }
 
-// Definimos los estilos para el PDF
+// Define una variable para guardar el logo como base64 (cuando lo tengas)
+// const logoBase64 = "data:image/png;base64,TU_LOGO_EN_BASE64";
+import logo from './logo.png'
+// Definimos los estilos para el PDF - ahora con colores verdes
 const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
@@ -96,13 +99,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginBottom: 20,
     textAlign: 'center',
-    color: '#1976d2',
+    color: '#2e7d32', // Cambiado a verde oscuro
     fontWeight: 'bold',
   },
   subheader: {
     fontSize: 18,
     marginBottom: 10,
-    color: '#1976d2',
+    color: '#2e7d32', // Cambiado a verde oscuro
     borderBottom: '1px solid #eeeeee',
     paddingBottom: 5,
   },
@@ -145,7 +148,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   tableHeader: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#e8f5e9', // Cambiado a verde claro
   },
   tableCell: {
     padding: 5,
@@ -190,7 +193,7 @@ const styles = StyleSheet.create({
   highlightValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#1976d2',
+    color: '#2e7d32', // Cambiado a verde oscuro
   },
   sectionTitle: {
     fontSize: 14,
@@ -228,7 +231,7 @@ const styles = StyleSheet.create({
   statBox: {
     width: '48%',
     padding: 10,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#e8f5e9', // Cambiado a verde claro
     borderRadius: 5,
   },
   statLabel: {
@@ -238,7 +241,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1976d2',
+    color: '#2e7d32', // Cambiado a verde oscuro
   },
   timelineContainer: {
     marginTop: 10,
@@ -274,9 +277,8 @@ const styles = StyleSheet.create({
     borderColor: '#eeeeee',
     textAlign: 'center',
     fontSize: 10,
-    backgroundColor: '#e8f5e9',
+    backgroundColor: '#e8f5e9', // Mantenido como verde claro
   },
-  // Nuevo estilo para porcentajes
   percentageRow: {
     flexDirection: 'row',
     marginTop: 5,
@@ -291,9 +293,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-  // Estilo para eficiencia
   efficiencyBox: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#e8f5e9', // Cambiado a verde claro
     padding: 10,
     borderRadius: 5,
     marginTop: 10,
@@ -301,16 +302,15 @@ const styles = StyleSheet.create({
   efficiencyTitle: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#1976d2',
+    color: '#2e7d32', // Cambiado a verde oscuro
     marginBottom: 5,
   },
   efficiencyValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1976d2',
+    color: '#2e7d32', // Cambiado a verde oscuro
     textAlign: 'center',
   },
-  // Estilos para cabecera con info de empresa
   companyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   companyName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333333',
+    color: '#2e7d32', // Cambiado a verde oscuro
   },
   companyDetails: {
     fontSize: 9,
@@ -341,6 +341,12 @@ const styles = StyleSheet.create({
   reportValue: {
     fontSize: 10,
     color: '#333333',
+  },
+  logo: {
+    width: 120,
+    height: 40,
+    marginBottom: 10,
+    alignSelf: 'flex-end'
   }
 });
 
@@ -411,14 +417,17 @@ const OrderReportPDF: React.FC<OrderReportPDFProps> = ({ orderSummary, analysis,
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Cabecera con información de la empresa */}
+        {/* Cabecera con información de la empresa - ahora con Rioja Nature Pharma */}
         <View style={styles.companyHeader}>
           <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>SISTEMA DE MONITORIZACIÓN DE FABRICACIÓN</Text>
+            <Text style={styles.companyName}>RIOJA NATURE PHARMA</Text>
             <Text style={styles.companyDetails}>Reporte generado el {new Date().toLocaleString()}</Text>
           </View>
           <View style={styles.reportInfo}>
-            <Text style={styles.reportLabel}>ORDEN ID:</Text>
+            {/* Cuando tengas un logo, descomenta esta línea y proporciona la ruta o el base64 */}
+            <Image style={styles.logo} src={logo} />
+
+<Text style={styles.reportLabel}>ORDEN ID:</Text>
             <Text style={styles.reportValue}>{orderSummary.id}</Text>
             <Text style={styles.reportLabel}>PRODUCTO:</Text>
             <Text style={styles.reportValue}>{orderSummary.product}</Text>
@@ -612,10 +621,12 @@ const OrderReportPDF: React.FC<OrderReportPDFProps> = ({ orderSummary, analysis,
       <Page size="A4" style={styles.page}>
         <View style={styles.companyHeader}>
           <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>SISTEMA DE MONITORIZACIÓN DE FABRICACIÓN</Text>
+            <Text style={styles.companyName}>RIOJA NATURE PHARMA</Text>
             <Text style={styles.companyDetails}>Reporte generado el {new Date().toLocaleString()}</Text>
           </View>
           <View style={styles.reportInfo}>
+            {/* <Image style={styles.logo} src={logoBase64} /> */}
+            <Image style={styles.logo} src={logo} />
             <Text style={styles.reportLabel}>ORDEN ID:</Text>
             <Text style={styles.reportValue}>{orderSummary.id}</Text>
             <Text style={styles.reportLabel}>PRODUCTO:</Text>
@@ -738,7 +749,7 @@ const OrderReportPDF: React.FC<OrderReportPDFProps> = ({ orderSummary, analysis,
         
         {/* Pie de página */}
         <View style={styles.footer}>
-          <Text>Reporte completo de fabricación - Sistema de Monitorización - Página 2</Text>
+          <Text>Reporte completo de fabricación - Rioja Nature Pharma - Página 2</Text>
         </View>
         <Text style={styles.pageNumber}>2</Text>
       </Page>
@@ -773,22 +784,23 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({ orderSummary, ana
             </Button>
           );
         }
+        
         return (
-            <Button
-              variant="contained"
-              color="primary"
-              disabled={loading}
-              startIcon={<DownloadIcon />}
-              component="a"
-              href={url || "#"}
-              download={`reporte_${orderSummary.product.replace(/\s+/g, '_')}_${orderSummary.id.substring(0, 8)}.pdf`}
-            >
-              {loading ? 'Generando PDF...' : 'Descargar Reporte PDF'}
-            </Button>
-          );
-        }}
-      </BlobProvider>
-    );
-  };
-  
-  export { OrderReportPDF, PDFDownloadButton };
+          <Button
+            variant="contained"
+            color="primary"
+            disabled={loading}
+            startIcon={<DownloadIcon />}
+            component="a"
+            href={url || "#"}
+            download={`reporte_${orderSummary.product.replace(/\s+/g, '_')}_${orderSummary.id.substring(0, 8)}.pdf`}
+          >
+            {loading ? 'Generando PDF...' : 'Descargar Reporte PDF'}
+          </Button>
+        );
+      }}
+    </BlobProvider>
+  );
+};
+
+export { OrderReportPDF, PDFDownloadButton };
