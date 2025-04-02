@@ -44,7 +44,7 @@ import {
 
   Error as ErrorIcon
 } from '@mui/icons-material';
-
+import ReportActions from './components/ReportActions';
 // URL base para la API
 const API_BASE_URL = 'http://192.168.11.116:3000/api';
 
@@ -907,6 +907,11 @@ const CremerDetails: React.FC = () => {
               >
                 Ver Análisis de Producción
               </Button>
+              <ReportActions
+              orderSummary={orderSummary}
+              analysis={analysis}
+              formatTimestamp={formatTimestamp}
+            />
             </Box>
           </Grid>
         </Grid>
@@ -979,6 +984,20 @@ const CremerDetails: React.FC = () => {
               </TableContainer>
             </Paper>
           </Grid>
+          {orderSummary && (
+          <Grid item xs={12}>
+            <Box mt={2}>
+              <Typography variant="h6" align="center" gutterBottom>
+                Opciones de Reporte
+              </Typography>
+              <ReportActions
+                orderSummary={orderSummary}
+                analysis={analysis}
+                formatTimestamp={formatTimestamp}
+              />
+            </Box>
+          </Grid>
+        )}
         </Grid>
       ) : (
         <Paper sx={{ p: 3, textAlign: 'center' }}>
@@ -987,6 +1006,96 @@ const CremerDetails: React.FC = () => {
           </Typography>
         </Paper>
       )}
+    </Box>
+  );
+  const renderReportsTab = () => (
+    <Box mt={3}>
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Generación de Reportes
+        </Typography>
+        <Typography paragraph>
+          Seleccione una orden completada para generar reportes detallados en diferentes formatos.
+        </Typography>
+        
+        <FormControl fullWidth sx={{ mb: 3 }}>
+          <InputLabel id="report-order-select-label">Seleccionar Orden</InputLabel>
+          <Select
+            labelId="report-order-select-label"
+            value={selectedOrderId}
+            label="Seleccionar Orden"
+            onChange={(e) => {
+              const orderId = e.target.value as string;
+              setSelectedOrderId(orderId);
+              if (orderId) {
+                loadOrderSummary(orderId);
+                // Opcionalmente cargar también el análisis
+                loadProductionAnalysis(orderId);
+              } else {
+                setOrderSummary(null);
+                setAnalysis(null);
+              }
+            }}
+          >
+            <MenuItem value="">
+              <em>Seleccionar una orden</em>
+            </MenuItem>
+            {orders
+              .filter(order => order.status === 'completed')
+              .map(order => (
+                <MenuItem key={order.id} value={order.id}>
+                  {order.product} - {formatTimestamp(order.createdAt)}
+                </MenuItem>
+              ))}
+          </Select>
+        </FormControl>
+        
+        {orderSummary ? (
+          <Box>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardHeader title="Información de la Orden" />
+                  <CardContent>
+                    <Typography><strong>Producto:</strong> {orderSummary.product}</Typography>
+                    <Typography><strong>Cantidad:</strong> {orderSummary.quantity}</Typography>
+                    <Typography><strong>Fecha inicio:</strong> {formatTimestamp(orderSummary.times.start)}</Typography>
+                    <Typography><strong>Fecha fin:</strong> {formatTimestamp(orderSummary.times.end)}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardHeader title="Resultados de Producción" />
+                  <CardContent>
+                    <Typography><strong>Botes Buenos:</strong> {orderSummary.production.countGood}</Typography>
+                    <Typography><strong>Botes Malos:</strong> {orderSummary.production.countBad}</Typography>
+                    <Typography><strong>Total:</strong> {orderSummary.production.total}</Typography>
+                    <Typography><strong>Tasa de Defectos:</strong> {orderSummary.production.defectRate ? `${orderSummary.production.defectRate.toFixed(2)}%` : 'N/A'}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+            
+            <Box mt={4}>
+              <Typography variant="h6" gutterBottom>
+                Opciones de Reporte
+              </Typography>
+              <ReportActions
+                orderSummary={orderSummary}
+                analysis={analysis}
+                formatTimestamp={formatTimestamp}
+              />
+            </Box>
+          </Box>
+        ) : (
+          <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: '#f5f5f5' }}>
+            <Typography color="textSecondary">
+              Seleccione una orden completada para ver sus opciones de reporte
+            </Typography>
+          </Paper>
+        )}
+      </Paper>
     </Box>
   );
 
@@ -1081,6 +1190,7 @@ const CremerDetails: React.FC = () => {
           <Tab label="Históricos" disabled />
           <Tab label="Resumen" />
           <Tab label="Análisis" />
+          <Tab label="Reportes" />
           <Tab label="Configuración" />
         </Tabs>
       </Box>
@@ -1100,8 +1210,12 @@ const CremerDetails: React.FC = () => {
         {tabValue === 4 && renderAnalysisTab()}
       </Box>
       <Box role="tabpanel" hidden={tabValue !== 5}>
-        {tabValue === 5 && renderConfigTab()}
-      </Box>
+  {tabValue === 5 && renderReportsTab()}
+</Box>
+<Box role="tabpanel" hidden={tabValue !== 6}>
+  {tabValue === 6 && renderConfigTab()}
+</Box>
+  
       
       {/* Diálogo para crear orden */}
       <Dialog 

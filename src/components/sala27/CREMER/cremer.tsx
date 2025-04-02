@@ -1,410 +1,492 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
-import styled from 'styled-components';
-import { Settings, FiberManualRecord } from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { 
+  Box, 
+  Typography, 
+  Card, 
+  CardContent,
+  Chip,
+  LinearProgress,
+  IconButton,
+  Tooltip,
+  Stack
+} from '@mui/material';
+import { 
+  FiberManualRecord as FiberManualRecordIcon,
+  CheckCircle as CheckCircleIcon,
+  Speed as SpeedIcon,
+  AccessTime as AccessTimeIcon,
+  Refresh as RefreshIcon,
+  BarChart as BarChartIcon
+} from '@mui/icons-material';
+// Importamos estilos
+import './styles/cremer.scss';
 
-// Configuration
-const CONFIG = {
-  WS: {
-    PING_INTERVAL: 30000,
-    RECONNECT_DELAY: 3000,
-    MAX_RECONNECT_ATTEMPTS: 5,
-    NORMAL_CLOSURE_CODE: 1000,
-    BACKOFF_MULTIPLIER: 1.5,
-  },
-  MONITOR: {
-    TIME_UPDATE_INTERVAL: 1000,
-  },
-};
+// URL base para la API
+const API_BASE_URL = 'http://192.168.11.116:3000/api';
 
-// Types
-interface StatusMonitorProps {
-  name?: string;
-  wsUrl: string;
-  onStatusChange?: (status: ConnectionStatus) => void;
-  onError?: (error: Error) => void;
-  onClick?: () => void;
+// Interfaces
+interface Order {
+  id: string;
+  product: string;
+  quantity: number;
+  status: 'pending' | 'active' | 'paused' | 'completed';
+  countGood: number;
+  countBad: number;
+  startTime?: string;
+  lastStartOrResumeTime?: string;
+  totalActiveTime: number;
 }
 
-type ConnectionStatus = 'Conectado' | 'Desconectado' | 'Reconectando' | 'Error';
-
-interface GPIOState {
-  estado: boolean;
-  ultima_transicion?: string;
-  conteo?: number;
-}
-
-interface GPIOStates {
-  Verde: GPIOState;
-  Amarillo: GPIOState;
-  Rojo: GPIOState;
-  Contador: GPIOState;
-}
-
-interface WSMessage {
-  timestamp: string;
-  estados: GPIOStates;
-}
-
-// Styled Components
-const MonitorCard = styled.div`
-  width: 100%;
-  height: 100%;
-  min-height: 160px;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  cursor: pointer;
+// Componente simplificado según diseño de referencia
+const Cremer: React.FC = () => {
+  // Estados básicos
+  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [counters, setCounters] = useState({
+    countGood: 0, 
+    countBad: 0, 
+    total: 0, 
+    progress: 0
+  });
+  const [productionRate, setProductionRate] = useState<number>(0);
+  const [estimatedEndTime, setEstimatedEndTime] = useState<Date | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [wsStatus, setWsStatus] = useState<boolean>(false);
+  const [machineStatus, setMachineStatus] = useState({
+    verde: false,
+    amarillo: false,
+    rojo: false
+  });
+  const [qualityRate, setQualityRate] = useState<number>(0);
   
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  }
-`;
-
-const CardHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-`;
-
-const TitleSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`;
-
-const Title = styled.h3`
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #2d3748;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const SettingsButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: rgba(0, 0, 0, 0.04);
-  }
-
-  svg {
-    color: #4a5568;
-    font-size: 18px;
-  }
-`;
-
-const StatusLights = styled.div`
-  display: flex;
-  gap: 8px;
-  align-items: center;
-`;
-
-const Light = styled(FiberManualRecord)<{ active: boolean; lightcolor: string }>`
-  transition: all 0.3s ease;
-  font-size: 20px;
-  color: ${props => props.active ? props.lightcolor : '#e2e8f0'};
-  filter: ${props => props.active ? `drop-shadow(0 0 4px ${props.lightcolor})` : 'none'};
-  transform: ${props => props.active ? 'scale(1.1)' : 'scale(1)'};
-`;
-
-const CardContent = styled.div`
-  padding: 16px;
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-`;
-
-const StatusBar = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
-
-const StatusChip = styled.div<{ status: ConnectionStatus }>`
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background-color: ${props => {
-    switch (props.status) {
-      case 'Conectado': return '#dcfce7';
-      case 'Reconectando': return '#fef9c3';
-      case 'Error': return '#fee2e2';
-      default: return '#f1f5f9';
-    }
-  }};
-  color: ${props => {
-    switch (props.status) {
-      case 'Conectado': return '#166534';
-      case 'Reconectando': return '#854d0e';
-      case 'Error': return '#991b1b';
-      default: return '#475569';
-    }
-  }};
-`;
-
-const TimeDisplay = styled.span`
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 500;
-`;
-
-const Spinner = styled.span`
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  display: inline-block;
-  animation: spin 1s linear infinite;
-`;
-
-// WebSocket Manager Class
-class WebSocketManager {
-  private ws: WebSocket | null = null;
-  private reconnectAttempts = 0;
-  private reconnectTimeout: NodeJS.Timeout | null = null;
-  private pingInterval: NodeJS.Timeout | null = null;
-  private backoffDelay = CONFIG.WS.RECONNECT_DELAY;
-  private isIntentionalClosure = false;
-
-  constructor(
-    private url: string,
-    private onMessage: (data: WSMessage) => void,
-    private onStatusChange: (status: ConnectionStatus) => void,
-    private onError: (error: Error) => void
-  ) {}
-
-  connect(): void {
-    if (this.ws?.readyState === WebSocket.CONNECTING) return;
-
-    try {
-      this.isIntentionalClosure = false;
-      this.ws = new WebSocket(this.url);
-      this.setupEventListeners();
-      this.startPingInterval();
-    } catch (error) {
-      this.handleError(new Error(`Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`));
-    }
-  }
-
-  private setupEventListeners(): void {
-    if (!this.ws) return;
-
-    this.ws.onopen = this.handleOpen.bind(this);
-    this.ws.onclose = this.handleClose.bind(this);
-    this.ws.onerror = (event: Event) => {
-      const wsError = event instanceof ErrorEvent ? event.error : new Error('WebSocket error');
-      this.handleError(wsError);
+  // Cargar datos iniciales y configurar intervalos de actualización
+  useEffect(() => {
+    loadData();
+    
+    // Intervalo para recargar datos generales cada 10 segundos
+    const dataInterval = setInterval(() => {
+      loadData();
+    }, 10000);
+    
+    // Intervalo para actualizar el cálculo de rendimiento cada 60 segundos (1 minuto)
+    // Esto actualiza el rendimiento incluso sin nueva información de la API
+    const rateUpdateInterval = setInterval(() => {
+      calculateRealTimeProductionRate();
+    }, 60000);
+    
+    return () => {
+      clearInterval(dataInterval);
+      clearInterval(rateUpdateInterval);
     };
-    this.ws.onmessage = this.handleMessage.bind(this);
-  }
+  }, []);
 
-  private handleOpen(): void {
-    this.reconnectAttempts = 0;
-    this.backoffDelay = CONFIG.WS.RECONNECT_DELAY;
-    this.onStatusChange('Conectado');
-  }
+  // Calcular tasa de producción en tiempo real cada vez que cambian los contadores o la orden
+  useEffect(() => {
+    calculateRealTimeProductionRate();
+    calculateQualityRate();
+  }, [counters, activeOrder]);
 
-  private handleClose(event: CloseEvent): void {
-    this.cleanup();
-    if (!this.isIntentionalClosure && event.code !== CONFIG.WS.NORMAL_CLOSURE_CODE) {
-      this.scheduleReconnect();
-    } else {
-      this.onStatusChange('Desconectado');
-    }
-  }
+  // Calcular tasa de producción en tiempo real
+  const calculateRealTimeProductionRate = () => {
+    if (!activeOrder || !activeOrder.startTime) return;
 
-  private handleError(error: Error): void {
-    console.error('[WebSocketManager] Error:', error);
-    this.onError(error);
-    this.onStatusChange('Error');
-  }
-
-  private handleMessage(event: MessageEvent): void {
-    try {
-      const data = JSON.parse(event.data) as WSMessage;
-      this.onMessage(data);
-    } catch (error) {
-      this.handleError(
-        new Error(`Message processing error: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      );
-    }
-  }
-
-  private scheduleReconnect(): void {
-    if (this.reconnectAttempts >= CONFIG.WS.MAX_RECONNECT_ATTEMPTS) {
-      this.handleError(new Error(`Maximum reconnection attempts (${CONFIG.WS.MAX_RECONNECT_ATTEMPTS}) reached`));
+    // Verificamos que la orden esté activa
+    if (activeOrder.status !== 'active') {
+      setProductionRate(0);
       return;
     }
 
-    this.onStatusChange('Reconectando');
+    // Obtener el tiempo de inicio de la orden
+    let startTimeMs;
     
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
+    try {
+      // Intentamos usar lastStartOrResumeTime si está disponible (más preciso para órdenes pausadas)
+      if (activeOrder.lastStartOrResumeTime) {
+        startTimeMs = new Date(activeOrder.lastStartOrResumeTime).getTime();
+      } else {
+        // Si no, usamos el tiempo de inicio original
+        startTimeMs = new Date(activeOrder.startTime).getTime();
+      }
+    } catch (error) {
+      console.error('Error al parsear fecha de inicio:', error);
+      return;
     }
 
-    const delay = this.backoffDelay * Math.pow(CONFIG.WS.BACKOFF_MULTIPLIER, this.reconnectAttempts);
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnectAttempts++;
-      console.log(`[WebSocketManager] Reconnection attempt ${this.reconnectAttempts} after ${delay}ms`);
-      this.connect();
-    }, delay);
-  }
+    // Obtener la hora actual para un cálculo preciso en tiempo real
+    const now = new Date().getTime();
+    
+    // Calcular el tiempo transcurrido en minutos
+    let elapsedMinutes;
+    
+    // Si hay tiempo activo total, usarlo directamente (considerando las pausas)
+    if (activeOrder.totalActiveTime > 0) {
+      // totalActiveTime normalmente viene en segundos, convertir a minutos
+      const baseMinutes = activeOrder.totalActiveTime / 60;
+      
+      // Para órdenes activas, añadir el tiempo desde la última actualización
+      if (activeOrder.status === 'active' && activeOrder.lastStartOrResumeTime) {
+        const lastResumeTime = new Date(activeOrder.lastStartOrResumeTime).getTime();
+        const additionalMinutes = (now - lastResumeTime) / 60000;
+        elapsedMinutes = baseMinutes + additionalMinutes;
+      } else {
+        elapsedMinutes = baseMinutes;
+      }
+    } else {
+      // Si no hay tiempo activo registrado, calcular desde el inicio
+      elapsedMinutes = (now - startTimeMs) / 60000;
+    }
 
-  private startPingInterval(): void {
-    this.cleanup();
-    this.pingInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        try {
-          this.ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
-        } catch (error) {
-          this.handleError(new Error('Ping error'));
+    // Calcular la tasa solo si el tiempo transcurrido es válido
+    if (elapsedMinutes > 0) {
+      // La tasa es el total de unidades dividido por el tiempo transcurrido
+      const rate = counters.total / elapsedMinutes;
+      console.log(`Cálculo en tiempo real: ${counters.total} unidades en ${elapsedMinutes.toFixed(2)} minutos = ${rate.toFixed(2)} u/min (${new Date().toLocaleTimeString()})`);
+      
+      // Actualizar el estado si es un número válido
+      if (!isNaN(rate) && isFinite(rate) && rate >= 0) {
+        setProductionRate(rate);
+        
+        // Actualizar tiempo estimado
+        if (rate > 0) {
+          const remainingItems = activeOrder.quantity - counters.total;
+          const minutesRemaining = remainingItems / rate;
+          const estimatedEnd = new Date();
+          estimatedEnd.setMinutes(estimatedEnd.getMinutes() + minutesRemaining);
+          setEstimatedEndTime(estimatedEnd);
         }
       }
-    }, CONFIG.WS.PING_INTERVAL);
-  }
-
-  private cleanup(): void {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
     }
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-  }
+  };
 
-  disconnect(): void {
-    this.isIntentionalClosure = true;
-    this.cleanup();
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      try {
-        this.ws.close(CONFIG.WS.NORMAL_CLOSURE_CODE);
-      } catch (error) {
-        console.error('[WebSocketManager] Disconnection error:', error);
+  // Calcular tasa de calidad
+  const calculateQualityRate = () => {
+    if (counters.total > 0) {
+      const rate = (counters.countGood / counters.total) * 100;
+      setQualityRate(rate);
+    } else {
+      setQualityRate(0);
+    }
+  };
+
+  // Cargar datos básicos
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      await loadActiveOrder();
+      await checkWebSocketStatus();
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cargar orden activa
+  const loadActiveOrder = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/orders`);
+      if (response.data.success) {
+        const allOrders = response.data.data;
+        const active: Order | undefined = allOrders.find((o: Order) => o.status === 'active' || o.status === 'paused');
+        
+        if (active) {
+          setActiveOrder(active);
+          updateMachineStatus(active.status);
+          await loadCounters(active.id);
+        } else {
+          setActiveOrder(null);
+          setCounters({ countGood: 0, countBad: 0, total: 0, progress: 0 });
+          setProductionRate(0);
+          setEstimatedEndTime(null);
+          setMachineStatus({ verde: false, amarillo: false, rojo: true });
+        }
       }
-      this.ws = null;
+    } catch (error) {
+      console.error('Error al cargar orden activa:', error);
+      setMachineStatus({ verde: false, amarillo: false, rojo: true });
     }
-  }
-}
+  };
 
-// Main Component
-const StatusMonitor: React.FC<StatusMonitorProps> = memo(({ 
-  name = "Monitor",
-  wsUrl,
-  onStatusChange,
-  onError,
-  onClick
-}) => {
-  const [gpioStates, setGpioStates] = useState<GPIOStates>({
-    Verde: { estado: false },
-    Amarillo: { estado: false },
-    Rojo: { estado: false },
-    Contador: { estado: false, conteo: 0 }
-  });
-  const [status, setStatus] = useState<ConnectionStatus>('Desconectado');
-  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
-  
-  const wsManagerRef = useRef<WebSocketManager | null>(null);
-
-  const handleMessage = useCallback((data: WSMessage) => {
-    if (data?.estados) {
-      setGpioStates(data.estados);
-    }
-  }, []);
-
-  const handleStatusChange = useCallback((newStatus: ConnectionStatus) => {
-    setStatus(newStatus);
-    onStatusChange?.(newStatus);
-  }, [onStatusChange]);
-
-  useEffect(() => {
-    wsManagerRef.current = new WebSocketManager(
-      wsUrl,
-      handleMessage,
-      handleStatusChange,
-      onError || ((error: Error) => console.error('[StatusMonitor] Error:', error))
-    );
-    
-    wsManagerRef.current.connect();
-
-    return () => {
-      wsManagerRef.current?.disconnect();
+  // Cargar contadores
+  interface CountersResponse {
+    success: boolean;
+    data: {
+      countGood: number;
+      countBad: number;
+      total: number;
+      progress: number;
     };
-  }, [wsUrl, handleMessage, handleStatusChange, onError]);
+  }
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString());
-    }, CONFIG.MONITOR.TIME_UPDATE_INTERVAL);
+  const loadCounters = async (orderId: string): Promise<void> => {
+    try {
+      const response = await axios.get<CountersResponse>(`${API_BASE_URL}/counters/order/${orderId}/current`);
+      if (response.data.success) {
+        setCounters(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error al cargar contadores:', error);
+    }
+  };
 
-    return () => clearInterval(intervalId);
-  }, []);
+  // Verificar estado de websocket
+  const checkWebSocketStatus = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/ws/status`);
+      if (response.data.success) {
+        setWsStatus(response.data.connected);
+      } else {
+        setWsStatus(false);
+      }
+    } catch (error) {
+      setWsStatus(false);
+      console.error('Error al verificar estado WebSocket:', error);
+    }
+  };
+
+  // Actualizar estado de la máquina
+  const updateMachineStatus = (status: string) => {
+    if (status === 'active') {
+      setMachineStatus({ verde: true, amarillo: false, rojo: false });
+    } else if (status === 'paused') {
+      setMachineStatus({ verde: false, amarillo: true, rojo: false });
+    } else {
+      setMachineStatus({ verde: false, amarillo: false, rojo: true });
+    }
+  };
+
+  // Formatear hora
+  const formatTime = (date: Date | null) => {
+    if (!date) return '—';
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
-    <MonitorCard onClick={onClick}>
-      <CardHeader>
-        <TitleSection>
-          <SettingsButton onClick={e => e.stopPropagation()}>
-            <Settings />
-          </SettingsButton>
-          <Title>{name}</Title>
-        </TitleSection>
-        <StatusLights>
-          <Light 
-            active={gpioStates.Rojo.estado}
-            lightcolor="#ef4444"
-          />
-          <Light 
-            active={gpioStates.Amarillo.estado}
-            lightcolor="#eab308"
-          />
-          <Light 
-            active={gpioStates.Verde.estado}
-            lightcolor="#22c55e"
-          />
-        </StatusLights>
-      </CardHeader>
+    <Card 
+      sx={{ 
+        width: '100%', 
+        height: 'auto',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+        borderRadius: 1,
+        overflow: 'hidden',
+        background: '#ffffff',
+        border: '1px solid rgba(0, 0, 0, 0.06)'
+      }}
+    >
+      {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2 }} />}
       
-      <CardContent>
-        <StatusBar>
-          <StatusChip status={status}>
-            {status === 'Reconectando' && (
-              <Spinner>⟳</Spinner>
-            )}
-            {status}
-          </StatusChip>
-          <TimeDisplay>{currentTime}</TimeDisplay>
-        </StatusBar>
+      <CardContent sx={{ p: 2, pb: '16px !important' }}>
+        {/* Header - Nombre y estado de conexión */}
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+          <Box display="flex" alignItems="center">
+            <Typography variant="subtitle1" fontWeight="500" sx={{ color: '#212121' }}>
+              Cremer
+            </Typography>
+            <Tooltip title="Actualizar datos">
+              <IconButton 
+                size="small" 
+                onClick={loadData} 
+                sx={{ ml: 0.5, p: 0.25 }}
+              >
+                <RefreshIcon sx={{ fontSize: 16, color: '#757575' }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          
+          {wsStatus && (
+            <CheckCircleIcon sx={{ color: '#4caf50', fontSize: 16 }} />
+          )}
+        </Box>
+        
+        {/* Semáforo */}
+        <Stack direction="row" spacing={0.5} alignItems="center" mb={1}>
+          <FiberManualRecordIcon 
+            sx={{ 
+              fontSize: 14, 
+              color: machineStatus.rojo ? '#ef5350' : '#e0e0e0'
+            }}
+          />
+          <FiberManualRecordIcon 
+            sx={{ 
+              fontSize: 14, 
+              color: machineStatus.amarillo ? '#ff9800' : '#e0e0e0'
+            }}
+          />
+          <FiberManualRecordIcon 
+            sx={{ 
+              fontSize: 14, 
+              color: machineStatus.verde ? '#4caf50' : '#e0e0e0'
+            }}
+          />
+          
+          {activeOrder && (
+            <Box flexGrow={1} display="flex" justifyContent="flex-end">
+              <Chip 
+                label={activeOrder.status === 'paused' ? "Pausada" : 
+                      (activeOrder.status === 'active' ? "Producción" : "Detenida")} 
+                size="small"
+                sx={{ 
+                  borderRadius: '12px',
+                  backgroundColor: activeOrder.status === 'paused' ? '#ff9800' : 
+                                  (activeOrder.status === 'active' ? '#4caf50' : '#ef5350'),
+                  color: 'white',
+                  height: '20px',
+                  fontSize: '0.7rem',
+                  fontWeight: 500,
+                  '& .MuiChip-label': { px: 1 }
+                }}
+              />
+            </Box>
+          )}
+        </Stack>
+        
+        {activeOrder && (
+          <>
+            {/* Nombre del producto y progreso */}
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: '#424242',
+                mb: 0.5,
+                fontSize: '0.875rem',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+              title={activeOrder.product}
+            >
+              {activeOrder.product}
+            </Typography>
+            
+            <Box display="flex" alignItems="center" justifyContent="space-between" mb={0.5}>
+              <Typography variant="body2" color="text.secondary" fontSize="0.8rem">
+                {counters.total} / {activeOrder.quantity}
+              </Typography>
+              
+              <Typography 
+                variant="body2" 
+                fontWeight="medium" 
+                sx={{ 
+                  color: '#f44336',
+                  fontSize: '0.8rem'
+                }}
+              >
+                {typeof counters.progress === 'number' ? counters.progress.toFixed(1) : counters.progress}%
+              </Typography>
+            </Box>
+            
+            {/* Barra de progreso */}
+            <LinearProgress 
+              variant="determinate" 
+              value={Math.min(counters.progress, 100)} 
+              sx={{ 
+                height: 5, 
+                borderRadius: 2, 
+                mb: 2,
+                backgroundColor: '#e0e0e0',
+                '& .MuiLinearProgress-bar': {
+                  backgroundColor: '#4caf50'
+                }
+              }}
+            />
+            
+            {/* Buenos y Malos */}
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+              <Box>
+                <Typography variant="body2" color="text.secondary" fontSize="0.75rem">
+                  Buenos
+                </Typography>
+                <Typography 
+                  variant="h6" 
+                  fontWeight="medium" 
+                  sx={{ 
+                    color: '#4caf50',
+                    fontSize: '1.25rem'
+                  }}
+                >
+                  {counters.countGood}
+                </Typography>
+              </Box>
+              
+              <Box textAlign="right">
+                <Typography variant="body2" color="text.secondary" fontSize="0.75rem">
+                  Malos
+                </Typography>
+                <Typography 
+                  variant="h6" 
+                  fontWeight="medium" 
+                  sx={{ 
+                    color: '#f44336',
+                    fontSize: '1.25rem'
+                  }}
+                >
+                  {counters.countBad}
+                </Typography>
+              </Box>
+            </Box>
+            
+            {/* Métricas finales */}
+            <Box 
+              sx={{ 
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              {/* Velocidad */}
+<Box display="flex" alignItems="center">
+  <SpeedIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
+  <Typography variant="caption" color="text.secondary">
+    Vel.
+  </Typography>
+  <Typography 
+    variant="body2" 
+    sx={{ 
+      ml: 0.5, 
+      color: '#212121',
+      fontWeight: 'medium' 
+    }}
+    
+    // Forzar actualización del componente cada segundo usando Date.now
+    key={activeOrder.status === 'active' ? Date.now() : 'static-rate'}
+  >
+    {productionRate > 0 ? `${Math.round(productionRate)} bpm` : '—'}
+  </Typography>
+</Box>
+
+{/* Calidad */}
+<Box display="flex" alignItems="center">
+  <BarChartIcon sx={{ fontSize: 14, color: '#4caf50', mr: 0.5 }} />
+  <Typography variant="caption" color="text.secondary">
+    Cal.
+  </Typography>
+  <Typography 
+    variant="body2" 
+    sx={{ ml: 0.5, color: '#4caf50', fontWeight: 'medium' }}
+  >
+    {qualityRate > 0 ? `${Math.round(qualityRate)}%` : '—'}
+  </Typography>
+</Box>
+              
+              {/* Fin estimado */}
+              <Box display="flex" alignItems="center">
+                <AccessTimeIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
+                <Typography variant="caption" color="text.secondary">
+                  Fin
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ ml: 0.5, color: '#212121' }}
+                >
+                  {activeOrder.status === 'active' && productionRate > 0 ? formatTime(estimatedEndTime) : '—'}
+                </Typography>
+              </Box>
+            </Box>
+          </>
+        )}
       </CardContent>
-    </MonitorCard>
+    </Card>
   );
-});
+};
 
-StatusMonitor.displayName = 'StatusMonitor';
-
-export default StatusMonitor;
+export default Cremer;
