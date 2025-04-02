@@ -45,6 +45,7 @@ import {
   Error as ErrorIcon
 } from '@mui/icons-material';
 import ReportActions from './components/ReportActions';
+import ReactDOM from 'react-dom';
 // URL base para la API
 const API_BASE_URL = 'http://192.168.11.116:3000/api';
 
@@ -167,7 +168,7 @@ const CremerDetails: React.FC = () => {
     loadOrders();
     checkWebSocketStatus();
     
-    // Iniciar intervalo de actualización (cada 10 segundos)
+    // Iniciar intervalo de actualización
     const interval = setInterval(() => {
       if (activeOrder) {
         refreshActiveOrderData(activeOrder.id);
@@ -178,11 +179,9 @@ const CremerDetails: React.FC = () => {
     setRefreshInterval(interval);
     
     return () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
+      clearInterval(interval); // Usar interval directamente en vez de refreshInterval
     };
-  }, []);
+  }, [activeOrder?.id]);
 
   // Efecto para actualizar datos cuando cambia la orden activa
   useEffect(() => {
@@ -242,8 +241,11 @@ const CremerDetails: React.FC = () => {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/orders/${orderId}/summary`);
       if (response.data.success) {
-        setOrderSummary(response.data.data);
-        setTabValue(3); // Cambiar a la pestaña de resumen
+        // Agrupamos varias actualizaciones de estado juntas
+        ReactDOM.unstable_batchedUpdates(() => {
+          setOrderSummary(response.data.data);
+          setTabValue(3);
+        });
       }
     } catch (error) {
       showAlert('error', 'Error al cargar resumen de la orden');
@@ -733,11 +735,11 @@ const CremerDetails: React.FC = () => {
                   ) : (
                     pauses.map((pause) => (
                       <TableRow key={pause.id}>
-                        <TableCell>{formatTimestamp(pause.startTime)}</TableCell>
-                        <TableCell>{pause.endTime ? formatTimestamp(pause.endTime) : '-'}</TableCell>
-                        <TableCell>{pause.formattedDuration || '-'}</TableCell>
-                        <TableCell>{pause.reason}</TableCell>
-                      </TableRow>
+                      <TableCell>{pause.startTime ? formatTimestamp(pause.startTime) : 'N/A'}</TableCell>
+                      <TableCell>{pause.endTime ? formatTimestamp(pause.endTime) : '-'}</TableCell>
+                      <TableCell>{pause.formattedDuration || (pause.duration ? formatDuration(pause.duration) : '-')}</TableCell>
+                      <TableCell>{pause.reason}</TableCell>
+                    </TableRow>
                     ))
                   )}
                 </TableBody>
@@ -1209,6 +1211,7 @@ const CremerDetails: React.FC = () => {
       <Box role="tabpanel" hidden={tabValue !== 4}>
         {tabValue === 4 && renderAnalysisTab()}
       </Box>
+
       <Box role="tabpanel" hidden={tabValue !== 5}>
   {tabValue === 5 && renderReportsTab()}
 </Box>

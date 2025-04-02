@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// Arreglo para ReportActions.jsx
+import React, { useState, useCallback, useMemo } from 'react';
 import { 
   Box, 
   Button, 
@@ -9,8 +10,7 @@ import {
   ListItemText,
   Snackbar,
   Alert,
-  Divider,
-  AlertColor
+  Divider
 } from '@mui/material';
 import { 
   InsertDriveFile as FileIcon,
@@ -85,36 +85,36 @@ interface ReportActionsProps {
 }
 
 // Componente centralizado para acciones relacionadas con reportes
-const ReportActions: React.FC<ReportActionsProps> = ({ orderSummary, analysis, formatTimestamp }) => {
+const ReportActions = ({ orderSummary, analysis, formatTimestamp }: ReportActionsProps) => {
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [alertOpen, setAlertOpen] = useState<boolean>(false);
   const [alertMessage, setAlertMessage] = useState<string>('');
-  const [alertSeverity, setAlertSeverity] = useState<AlertColor>('success');
+  const [alertSeverity, setAlertSeverity] = useState<'success' | 'info' | 'warning' | 'error'>('success');
   
-  const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleMenuClick = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     setMenuAnchorEl(event.currentTarget);
-  };
+  }, []);
   
-  const handleMenuClose = () => {
+  const handleMenuClose = useCallback(() => {
     setMenuAnchorEl(null);
-  };
+  }, []);
   
-  const showAlert = (message: string, severity: AlertColor = 'success') => {
+  const showAlert = useCallback((message: string, severity: 'success' | 'info' | 'warning' | 'error' = 'success') => {
     setAlertMessage(message);
     setAlertSeverity(severity);
     setAlertOpen(true);
-  };
+  }, []);
   
-  const handleCloseAlert = () => {
+  const handleCloseAlert = useCallback(() => {
     setAlertOpen(false);
-  };
+  }, []);
   
-  const handlePrint = () => {
+  const handlePrint = useCallback(() => {
     handleMenuClose();
     showAlert('Funcionalidad de impresión en desarrollo');
-  };
+  }, [handleMenuClose, showAlert]);
   
-  const handleShare = () => {
+  const handleShare = useCallback(() => {
     handleMenuClose();
     
     // Simular compartir vía correo electrónico u otra plataforma
@@ -130,12 +130,29 @@ const ReportActions: React.FC<ReportActionsProps> = ({ orderSummary, analysis, f
     } else {
       showAlert('La funcionalidad de compartir no está disponible en este navegador', 'warning');
     }
-  };
+  }, [handleMenuClose, orderSummary, formatTimestamp, showAlert]);
   
-  const handleExportExcel = () => {
+  const handleExportExcel = useCallback(() => {
     handleMenuClose();
     showAlert('Exportación a Excel en desarrollo');
-  };
+  }, [handleMenuClose, showAlert]);
+  
+  // Memoizar los componentes PDFPreviewDialog y PDFDownloadButton
+  const memoizedPDFPreviewDialog = useMemo(() => (
+    <PDFPreviewDialog 
+      orderSummary={orderSummary}
+      analysis={analysis}
+      formatTimestamp={formatTimestamp}
+    />
+  ), [orderSummary.id, analysis?.productionRate, formatTimestamp]);
+  
+  const memoizedPDFDownloadButton = useMemo(() => (
+    <PDFDownloadButton 
+      orderSummary={orderSummary} 
+      analysis={analysis}
+      formatTimestamp={formatTimestamp}
+    />
+  ), [orderSummary.id, analysis?.productionRate, formatTimestamp]);
   
   if (!orderSummary) return null;
   
@@ -144,18 +161,10 @@ const ReportActions: React.FC<ReportActionsProps> = ({ orderSummary, analysis, f
       <Box>
         <ButtonGroup variant="contained">
           {/* Vista Previa del Reporte */}
-          <PDFPreviewDialog 
-            orderSummary={orderSummary}
-            analysis={analysis}
-            formatTimestamp={formatTimestamp}
-          />
+          {memoizedPDFPreviewDialog}
           
           {/* Botón de Descarga Directa */}
-          <PDFDownloadButton 
-            orderSummary={orderSummary} 
-            analysis={analysis}
-            formatTimestamp={formatTimestamp}
-          />
+          {memoizedPDFDownloadButton}
           
           {/* Menú de Opciones Adicionales */}
           <Button color="primary" onClick={handleMenuClick}>
@@ -199,4 +208,10 @@ const ReportActions: React.FC<ReportActionsProps> = ({ orderSummary, analysis, f
   );
 };
 
-export default ReportActions;
+// Exportamos con React.memo y comparador personalizado
+export default React.memo(ReportActions, (prevProps, nextProps) => {
+  return (
+    prevProps.orderSummary.id === nextProps.orderSummary.id &&
+    prevProps.analysis?.productionRate === nextProps.analysis?.productionRate
+  );
+});
