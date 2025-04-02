@@ -771,7 +771,7 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({ orderSummary, ana
         />
       }
     >
-      {({ blob, url, loading, error }) => {
+      {({ url, loading, error }) => {
         if (error) {
           return (
             <Button

@@ -17,8 +17,7 @@ import {
 } from '@mui/material';
 import { 
   PlayArrow as PlayIcon, 
-  Pause as PauseIcon, 
-  Stop as StopIcon, 
+
   Refresh as RefreshIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
@@ -60,7 +59,7 @@ interface Pause {
 // Componente principal
 const tecnomaco: React.FC = () => {
   // Estados para los datos
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [, setOrders] = useState<Order[]>([]);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [counters, setCounters] = useState<{ countGood: number, countBad: number, total: number, progress: number }>(
     { countGood: 0, countBad: 0, total: 0, progress: 0 }
@@ -191,7 +190,6 @@ const tecnomaco: React.FC = () => {
       // }
       
       // Simulación de datos
-      const completedOrdersCount = completedOrders.length;
       
       let totalGood = 0;
       let totalBad = 0;

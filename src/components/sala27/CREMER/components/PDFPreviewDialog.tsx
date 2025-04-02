@@ -134,7 +134,7 @@ const PDFPreviewDialog: React.FC<PDFPreviewDialogProps> = ({ orderSummary, analy
     />
   }
 >
-  {({ blob, url, loading, error }) => (
+  {({ url, loading, error }) => (
     <Button 
       color="inherit" 
       startIcon={<DownloadIcon />}
