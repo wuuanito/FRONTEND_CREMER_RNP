@@ -23,25 +23,42 @@ import {
 import './styles/cremer.scss';
 
 // URL base para la API
-const API_BASE_URL = 'http://192.168.11.116:3000/api';
+const API_BASE_URL = 'http://192.168.11.25:3000/api';
 
-// Interfaces
-interface Order {
-  id: string;
-  product: string;
+// Interfaces para las nuevas estructuras de datos
+interface ManufacturingOrderSummary {
+  id: number;
+  order_id: number;
+  order_code: string;
+  status: string;
+  article_code: string;
+  description: string;
   quantity: number;
-  status: 'pending' | 'active' | 'paused' | 'completed';
-  countGood: number;
-  countBad: number;
-  startTime?: string;
-  lastStartOrResumeTime?: string;
-  totalActiveTime: number;
+  produced: {
+    good_units: number;
+    defective_units: number;
+    total: number;
+    completion_percentage: number;
+  };
+  time: {
+    start_time: string;
+    end_time: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+}
+
+interface ManufacturingOrderList {
+  total: number;
+  limit: number;
+  offset: number;
+  orders: ManufacturingOrderSummary[];
 }
 
 // Componente simplificado según diseño de referencia
 const Cremer: React.FC = () => {
   // Estados básicos
-  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [activeOrder, setActiveOrder] = useState<ManufacturingOrderSummary | null>(null);
   const [counters, setCounters] = useState({
     countGood: 0, 
     countBad: 0, 
@@ -51,11 +68,11 @@ const Cremer: React.FC = () => {
   const [productionRate, setProductionRate] = useState<number>(0);
   const [estimatedEndTime, setEstimatedEndTime] = useState<Date | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [wsStatus, setWsStatus] = useState<boolean>(false);
+  const [wsStatus, setWsStatus] = useState<boolean>(true); // Simplificado
   const [machineStatus, setMachineStatus] = useState({
     verde: false,
     amarillo: false,
-    rojo: false
+    rojo: true // Por defecto, sin orden activa
   });
   const [qualityRate, setQualityRate] = useState<number>(0);
   
@@ -69,7 +86,6 @@ const Cremer: React.FC = () => {
     }, 10000);
     
     // Intervalo para actualizar el cálculo de rendimiento cada 60 segundos (1 minuto)
-    // Esto actualiza el rendimiento incluso sin nueva información de la API
     const rateUpdateInterval = setInterval(() => {
       calculateRealTimeProductionRate();
     }, 60000);
@@ -82,16 +98,18 @@ const Cremer: React.FC = () => {
 
   // Calcular tasa de producción en tiempo real cada vez que cambian los contadores o la orden
   useEffect(() => {
-    calculateRealTimeProductionRate();
-    calculateQualityRate();
+    if (activeOrder) {
+      calculateRealTimeProductionRate();
+      calculateQualityRate();
+    }
   }, [counters, activeOrder]);
 
   // Calcular tasa de producción en tiempo real
   const calculateRealTimeProductionRate = () => {
-    if (!activeOrder || !activeOrder.startTime) return;
+    if (!activeOrder || !activeOrder.time.start_time) return;
 
-    // Verificamos que la orden esté activa
-    if (activeOrder.status !== 'active') {
+    // Verificamos que la orden esté activa (no completada o cancelada)
+    if (activeOrder.status === 'FINISHED' || activeOrder.status === 'CANCELLED') {
       setProductionRate(0);
       return;
     }
@@ -100,13 +118,8 @@ const Cremer: React.FC = () => {
     let startTimeMs;
     
     try {
-      // Intentamos usar lastStartOrResumeTime si está disponible (más preciso para órdenes pausadas)
-      if (activeOrder.lastStartOrResumeTime) {
-        startTimeMs = new Date(activeOrder.lastStartOrResumeTime).getTime();
-      } else {
-        // Si no, usamos el tiempo de inicio original
-        startTimeMs = new Date(activeOrder.startTime).getTime();
-      }
+      // Usamos el tiempo de inicio de la orden
+      startTimeMs = new Date(activeOrder.time.start_time).getTime();
     } catch (error) {
       console.error('Error al parsear fecha de inicio:', error);
       return;
@@ -115,40 +128,32 @@ const Cremer: React.FC = () => {
     // Obtener la hora actual para un cálculo preciso en tiempo real
     const now = new Date().getTime();
     
-    // Calcular el tiempo transcurrido en minutos
-    let elapsedMinutes;
+    // Calcular el tiempo transcurrido en minutos desde el inicio hasta ahora (o hasta el fin si ya terminó)
+    const endTimeMs = activeOrder.time.end_time ? new Date(activeOrder.time.end_time).getTime() : now;
+    const totalDurationMs = endTimeMs - startTimeMs;
     
-    // Si hay tiempo activo total, usarlo directamente (considerando las pausas)
-    if (activeOrder.totalActiveTime > 0) {
-      // totalActiveTime normalmente viene en segundos, convertir a minutos
-      const baseMinutes = activeOrder.totalActiveTime / 60;
-      
-      // Para órdenes activas, añadir el tiempo desde la última actualización
-      if (activeOrder.status === 'active' && activeOrder.lastStartOrResumeTime) {
-        const lastResumeTime = new Date(activeOrder.lastStartOrResumeTime).getTime();
-        const additionalMinutes = (now - lastResumeTime) / 60000;
-        elapsedMinutes = baseMinutes + additionalMinutes;
-      } else {
-        elapsedMinutes = baseMinutes;
-      }
-    } else {
-      // Si no hay tiempo activo registrado, calcular desde el inicio
-      elapsedMinutes = (now - startTimeMs) / 60000;
-    }
+    // Para órdenes en pausa, usar el tiempo actualizado
+    let effectiveTimeMs = totalDurationMs;
+    
+    // Si hay información sobre pausas, se podría ajustar aquí
+    // En este caso, asumimos que no tenemos pausas registradas en tiempo real
+    
+    // Convertir a minutos
+    const elapsedMinutes = effectiveTimeMs / 60000;
 
     // Calcular la tasa solo si el tiempo transcurrido es válido
     if (elapsedMinutes > 0) {
       // La tasa es el total de unidades dividido por el tiempo transcurrido
-      const rate = counters.total / elapsedMinutes;
-      console.log(`Cálculo en tiempo real: ${counters.total} unidades en ${elapsedMinutes.toFixed(2)} minutos = ${rate.toFixed(2)} u/min (${new Date().toLocaleTimeString()})`);
+      const total = activeOrder.produced.total;
+      const rate = total / elapsedMinutes;
       
       // Actualizar el estado si es un número válido
       if (!isNaN(rate) && isFinite(rate) && rate >= 0) {
         setProductionRate(rate);
         
         // Actualizar tiempo estimado
-        if (rate > 0) {
-          const remainingItems = activeOrder.quantity - counters.total;
+        if (rate > 0 && (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS')) {
+          const remainingItems = activeOrder.quantity - total;
           const minutesRemaining = remainingItems / rate;
           const estimatedEnd = new Date();
           estimatedEnd.setMinutes(estimatedEnd.getMinutes() + minutesRemaining);
@@ -160,8 +165,10 @@ const Cremer: React.FC = () => {
 
   // Calcular tasa de calidad
   const calculateQualityRate = () => {
-    if (counters.total > 0) {
-      const rate = (counters.countGood / counters.total) * 100;
+    if (activeOrder && activeOrder.produced.total > 0) {
+      const goodUnits = activeOrder.produced.good_units;
+      const total = activeOrder.produced.total;
+      const rate = (goodUnits / total) * 100;
       setQualityRate(rate);
     } else {
       setQualityRate(0);
@@ -172,8 +179,7 @@ const Cremer: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      await loadActiveOrder();
-      await checkWebSocketStatus();
+      await loadLatestActiveOrder();
     } catch (error) {
       console.error('Error al cargar datos:', error);
     } finally {
@@ -181,25 +187,64 @@ const Cremer: React.FC = () => {
     }
   };
 
-  // Cargar orden activa
-  const loadActiveOrder = async () => {
+  // Cargar la última orden iniciada no completada
+  const loadLatestActiveOrder = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/orders`);
-      if (response.data.success) {
-        const allOrders = response.data.data;
-        const active: Order | undefined = allOrders.find((o: Order) => o.status === 'active' || o.status === 'paused');
+      console.log("Cargando órdenes de fabricación...");
+      
+      // Obtener todas las órdenes de fabricación
+      const response = await fetch(`${API_BASE_URL}/manufacturing`);
+      
+      if (!response.ok) {
+        throw new Error(`Error en la respuesta: ${response.status}`);
+      }
+      
+      const data: ManufacturingOrderList = await response.json();
+      console.log("Datos recibidos:", data);
+      
+      // Filtrar para obtener solo órdenes no completadas
+      // Ahora incluimos STARTED, IN_PROGRESS y PAUSED
+      const activeOrders = data.orders.filter(order => 
+        order.status === 'STARTED' || 
+        order.status === 'IN_PROGRESS' || 
+        order.status === 'PAUSED'
+      );
+      
+      console.log("Órdenes activas encontradas:", activeOrders.length);
+      
+      if (activeOrders.length > 0) {
+        // Ordenar por start_time (la más reciente primero)
+        activeOrders.sort((a, b) => {
+          const timeA = new Date(a.time.start_time).getTime();
+          const timeB = new Date(b.time.start_time).getTime();
+          return timeB - timeA; // Orden descendente
+        });
         
-        if (active) {
-          setActiveOrder(active);
-          updateMachineStatus(active.status);
-          await loadCounters(active.id);
-        } else {
-          setActiveOrder(null);
-          setCounters({ countGood: 0, countBad: 0, total: 0, progress: 0 });
-          setProductionRate(0);
-          setEstimatedEndTime(null);
-          setMachineStatus({ verde: false, amarillo: false, rojo: true });
-        }
+        // Tomar la primera (más reciente)
+        const latestOrder = activeOrders[0];
+        console.log("Orden activa seleccionada:", latestOrder);
+        
+        setActiveOrder(latestOrder);
+        
+        // Actualizar contadores con los datos de la orden
+        setCounters({
+          countGood: latestOrder.produced.good_units,
+          countBad: latestOrder.produced.defective_units,
+          total: latestOrder.produced.total,
+          progress: latestOrder.produced.completion_percentage * 100 // Convertir a porcentaje
+        });
+        
+        // Actualizar el estado de la máquina según el estado de la orden
+        updateMachineStatus(latestOrder.status);
+      } else {
+        // No hay órdenes activas
+        console.log("No se encontraron órdenes activas");
+        
+        setActiveOrder(null);
+        setCounters({ countGood: 0, countBad: 0, total: 0, progress: 0 });
+        setProductionRate(0);
+        setEstimatedEndTime(null);
+        setMachineStatus({ verde: false, amarillo: false, rojo: true });
       }
     } catch (error) {
       console.error('Error al cargar orden activa:', error);
@@ -207,48 +252,11 @@ const Cremer: React.FC = () => {
     }
   };
 
-  // Cargar contadores
-  interface CountersResponse {
-    success: boolean;
-    data: {
-      countGood: number;
-      countBad: number;
-      total: number;
-      progress: number;
-    };
-  }
-
-  const loadCounters = async (orderId: string): Promise<void> => {
-    try {
-      const response = await axios.get<CountersResponse>(`${API_BASE_URL}/counters/order/${orderId}/current`);
-      if (response.data.success) {
-        setCounters(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error al cargar contadores:', error);
-    }
-  };
-
-  // Verificar estado de websocket
-  const checkWebSocketStatus = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/ws/status`);
-      if (response.data.success) {
-        setWsStatus(response.data.connected);
-      } else {
-        setWsStatus(false);
-      }
-    } catch (error) {
-      setWsStatus(false);
-      console.error('Error al verificar estado WebSocket:', error);
-    }
-  };
-
-  // Actualizar estado de la máquina
+  // Actualizar estado de la máquina según el estado de la orden
   const updateMachineStatus = (status: string) => {
-    if (status === 'active') {
+    if (status === 'STARTED' || status === 'IN_PROGRESS') {
       setMachineStatus({ verde: true, amarillo: false, rojo: false });
-    } else if (status === 'paused') {
+    } else if (status === 'PAUSED') {
       setMachineStatus({ verde: false, amarillo: true, rojo: false });
     } else {
       setMachineStatus({ verde: false, amarillo: false, rojo: true });
@@ -259,6 +267,23 @@ const Cremer: React.FC = () => {
   const formatTime = (date: Date | null) => {
     if (!date) return '—';
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Mapear el estado de la orden a un texto más amigable
+  const getStatusText = (status: string): string => {
+    switch (status) {
+      case 'STARTED':
+      case 'IN_PROGRESS':
+        return 'Producción';
+      case 'PAUSED':
+        return 'Pausada';
+      case 'FINISHED':
+        return 'Completada';
+      case 'CANCELLED':
+        return 'Cancelada';
+      default:
+        return 'Detenida';
+    }
   };
 
   return (
@@ -322,13 +347,12 @@ const Cremer: React.FC = () => {
           {activeOrder && (
             <Box flexGrow={1} display="flex" justifyContent="flex-end">
               <Chip 
-                label={activeOrder.status === 'paused' ? "Pausada" : 
-                      (activeOrder.status === 'active' ? "Producción" : "Detenida")} 
+                label={getStatusText(activeOrder.status)}
                 size="small"
                 sx={{ 
                   borderRadius: '12px',
-                  backgroundColor: activeOrder.status === 'paused' ? '#ff9800' : 
-                                  (activeOrder.status === 'active' ? '#4caf50' : '#ef5350'),
+                  backgroundColor: activeOrder.status === 'PAUSED' ? '#ff9800' : 
+                                  (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS') ? '#4caf50' : '#ef5350',
                   color: 'white',
                   height: '20px',
                   fontSize: '0.7rem',
@@ -340,7 +364,7 @@ const Cremer: React.FC = () => {
           )}
         </Stack>
         
-        {activeOrder && (
+        {activeOrder ? (
           <>
             {/* Nombre del producto y progreso */}
             <Typography 
@@ -353,9 +377,9 @@ const Cremer: React.FC = () => {
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'
               }}
-              title={activeOrder.product}
+              title={activeOrder.description}
             >
-              {activeOrder.product}
+              {activeOrder.article_code} - {activeOrder.description}
             </Typography>
             
             <Box display="flex" alignItems="center" justifyContent="space-between" mb={0.5}>
@@ -434,39 +458,39 @@ const Cremer: React.FC = () => {
               }}
             >
               {/* Velocidad */}
-<Box display="flex" alignItems="center">
-  <SpeedIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
-  <Typography variant="caption" color="text.secondary">
-    Vel.
-  </Typography>
-  <Typography 
-    variant="body2" 
-    sx={{ 
-      ml: 0.5, 
-      color: '#212121',
-      fontWeight: 'medium' 
-    }}
-    
-    // Forzar actualización del componente cada segundo usando Date.now
-    key={activeOrder.status === 'active' ? Date.now() : 'static-rate'}
-  >
-    {productionRate > 0 ? `${Math.round(productionRate)} bpm` : '—'}
-  </Typography>
-</Box>
+              <Box display="flex" alignItems="center">
+                <SpeedIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
+                <Typography variant="caption" color="text.secondary">
+                  Vel.
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    ml: 0.5, 
+                    color: '#212121',
+                    fontWeight: 'medium' 
+                  }}
+                  
+                  // Forzar actualización del componente cada segundo usando Date.now
+                  key={(activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS') ? Date.now() : 'static-rate'}
+                >
+                  {productionRate > 0 ? `${Math.round(productionRate)} bpm` : '—'}
+                </Typography>
+              </Box>
 
-{/* Calidad */}
-<Box display="flex" alignItems="center">
-  <BarChartIcon sx={{ fontSize: 14, color: '#4caf50', mr: 0.5 }} />
-  <Typography variant="caption" color="text.secondary">
-    Cal.
-  </Typography>
-  <Typography 
-    variant="body2" 
-    sx={{ ml: 0.5, color: '#4caf50', fontWeight: 'medium' }}
-  >
-    {qualityRate > 0 ? `${Math.round(qualityRate)}%` : '—'}
-  </Typography>
-</Box>
+              {/* Calidad */}
+              <Box display="flex" alignItems="center">
+                <BarChartIcon sx={{ fontSize: 14, color: '#4caf50', mr: 0.5 }} />
+                <Typography variant="caption" color="text.secondary">
+                  Cal.
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ ml: 0.5, color: '#4caf50', fontWeight: 'medium' }}
+                >
+                  {qualityRate > 0 ? `${Math.round(qualityRate)}%` : '—'}
+                </Typography>
+              </Box>
               
               {/* Fin estimado */}
               <Box display="flex" alignItems="center">
@@ -478,11 +502,18 @@ const Cremer: React.FC = () => {
                   variant="body2" 
                   sx={{ ml: 0.5, color: '#212121' }}
                 >
-                  {activeOrder.status === 'active' && productionRate > 0 ? formatTime(estimatedEndTime) : '—'}
+                  {(activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS') && productionRate > 0 ? formatTime(estimatedEndTime) : '—'}
                 </Typography>
               </Box>
             </Box>
           </>
+        ) : (
+          // Mensaje cuando no hay orden activa
+          <Box display="flex" justifyContent="center" alignItems="center" height="100px">
+            <Typography variant="body2" color="text.secondary">
+              No hay órdenes de producción activas
+            </Typography>
+          </Box>
         )}
       </CardContent>
     </Card>

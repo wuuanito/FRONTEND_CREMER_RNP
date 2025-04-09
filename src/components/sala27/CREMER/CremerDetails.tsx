@@ -1,1372 +1,846 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { 
-  Box, 
+  Container, 
   Typography, 
   Paper, 
-  Grid, 
-  Button, 
-  Divider, 
-  TextField, 
-  Dialog, 
-  DialogActions, 
-  DialogContent, 
-  DialogContentText, 
-  DialogTitle,
+  Tabs, 
+  Tab, 
+  Box, 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TableHead, 
+  TableRow,
+  Button,
+  Chip,
+  CircularProgress,
   Card,
   CardContent,
   CardHeader,
-  LinearProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Chip,
+  Grid,
+  Divider,
   IconButton,
-  Tabs,
-  Tab,
-  Snackbar,
-  Alert,
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl
+  Tooltip
 } from '@mui/material';
 import { 
-  PlayArrow as PlayIcon, 
-  Pause as PauseIcon, 
-  Stop as StopIcon, 
   Refresh as RefreshIcon,
-  Add as AddIcon,
-  CheckCircle as CheckCircleIcon,
-
-  Error as ErrorIcon
+  Info as InfoIcon,
+  Check as CheckIcon,
+  Pause as PauseIcon,
+  LocalShipping as ShippingIcon,
+  CleaningServices as CleaningIcon,
+  ArrowBack as ArrowBackIcon,
+  Dashboard as DashboardIcon,
+  BarChart as ChartIcon
 } from '@mui/icons-material';
-import ReportActions from './components/ReportActions';
-import ReactDOM from 'react-dom';
-// URL base para la API
-const API_BASE_URL = 'http://192.168.11.116:3000/api';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import DashboardReports from './components/DashboardReports'; // Importar el componente de dashboard
 
-// Interfaces para los tipos de datos
-interface Order {
-  id: string;
-  product: string;
-  quantity: number;
-  notes?: string;
-  status: 'pending' | 'active' | 'paused' | 'completed';
-  startTime?: string;
-  endTime?: string;
-  totalActiveTime: number;
-  totalPauseTime: number;
-  totalTime: number;
-  countGood: number;
-  countBad: number;
-  finishNotes?: string;
-  averageProductionRate?: number;
-  defectRate?: number;
-  lastStartOrResumeTime?: string;
-  createdAt: string;
-  updatedAt: string;
+// Interfaces para tipado
+interface ManufacturingOrderList {
+  total: number;
+  limit: number;
+  offset: number;
+  orders: ManufacturingOrderSummary[];
 }
 
-interface Pause {
-  id: string;
-  orderId: string;
-  startTime: string;
-  endTime?: string;
-  duration?: number;
-  reason: string;
-  isActive: boolean;
-  formattedDuration?: string;
-}
-
-
-
-interface OrderSummary {
-  id: string;
-  product: string;
-  quantity: number;
+interface ManufacturingOrderSummary {
+  id: number;
+  order_id: number;
+  order_code: string;
   status: string;
-  times: {
-    start?: string;
-    end?: string;
-    totalActive: number;
-    totalPause: number;
+  article_code: string;
+  description: string;
+  quantity: number;
+  produced: {
+    good_units: number;
+    defective_units: number;
     total: number;
-    formattedTotalActive: string;
-    formattedTotalPause: string;
-    formattedTotal: string;
+    completion_percentage: number;
   };
-  production: {
-    countGood: number;
-    countBad: number;
-    total: number;
-    defectRate?: number;
-    productionRate?: number;
-    formattedProductionRate?: string;
-  };
-  notes: {
-    initial?: string;
-    final?: string;
-  };
-  pauses: Array<Pause>;
-}
-
-interface ProductionAnalysis {
-  timeIntervals: Array<{
-    hour: string;
-    good: number;
-    bad: number;
-    total: number;
-  }>;
-  productionRate: number;
-  averageRate: {
-    good: number;
-    bad: number;
-    total: number;
+  time: {
+    start_time: string;
+    end_time: string;
+    created_at: string;
+    updated_at: string;
   };
 }
 
-interface Alert {
-  type: 'success' | 'info' | 'warning' | 'error';
-  message: string;
-  open: boolean;
+interface CleaningOrderList {
+  total: number;
+  limit: number;
+  offset: number;
+  orders: CleaningOrderSummary[];
 }
 
-// Componente principal
+interface CleaningOrderSummary {
+  id: number;
+  order_id: number;
+  order_code: string;
+  status: string;
+  cleaning_type: string;
+  area_id: string;
+  area_name: string;
+  description: string;
+  associated_manufacturing_order_id: number | null;
+  operator_name: string | null;
+  completed: boolean;
+  estimated_duration_minutes: number;
+  time: {
+    start_time: string;
+    end_time: string;
+    created_at: string;
+    updated_at: string;
+    duration: number;
+  };
+}
+
+interface ManufacturingOrderDetail {
+  order: {
+    id: number;
+    order_code: string;
+    type: string;
+    status: string;
+    start_time: string;
+    end_time: string;
+    created_at: string;
+    updated_at: string;
+    notes: string | null;
+  };
+  manufacturing_order: {
+    id: number;
+    article_code: string;
+    description: string;
+    quantity: number;
+    target_production_rate: number;
+    good_units: number;
+    defective_units: number;
+    total_produced: number;
+    completion_percentage: number;
+  };
+  time_stats: {
+    total_duration: number;
+    total_pause_time: number;
+    effective_production_time: number;
+  };
+  pauses: {
+    id: number;
+    reason: string;
+    start_time: string;
+    end_time: string;
+    duration_ms: number;
+    duration_minutes: number;
+    comments: string;
+  }[];
+  recent_production_entries: any[];
+}
+
+interface CleaningOrderDetail {
+  order: {
+    id: number;
+    order_code: string;
+    type: string;
+    status: string;
+    start_time: string;
+    end_time: string;
+    created_at: string;
+    updated_at: string;
+    notes: string | null;
+  };
+  cleaning_order: {
+    id: number;
+    cleaning_type: string;
+    area_id: string;
+    area_name: string;
+    description: string;
+    operator_id: string | null;
+    operator_name: string | null;
+    estimated_duration_minutes: number;
+    completed: boolean;
+    completion_notes: string | null;
+    products_used: string | null;
+  };
+  associated_manufacturing_order: any | null;
+  time_stats: {
+    duration_ms: number;
+    duration_minutes: number;
+    estimated_vs_actual: number;
+  };
+}
+
+// URLs API
+const API_BASE_URL = 'http://192.168.11.25:3000/api';
+const MANUFACTURING_URL = `${API_BASE_URL}/manufacturing`;
+const CLEANING_URL = `${API_BASE_URL}/cleaning`;
+
+// Estilos para las filas de tablas
+const tableStyles = `
+  .hover-row:hover {
+    background-color: #f5f5f5;
+  }
+`;
+
 const CremerDetails: React.FC = () => {
-  // Estados para los datos
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
-  const [orderSummary, setOrderSummary] = useState<OrderSummary | null>(null);
-  const [pauses, setPauses] = useState<Pause[]>([]);
-  const [counters, setCounters] = useState<{ countGood: number, countBad: number, total: number, progress: number }>(
-    { countGood: 0, countBad: 0, total: 0, progress: 0 }
-  );
-  const [analysis, setAnalysis] = useState<ProductionAnalysis | null>(null);
-  const [wsStatus, setWsStatus] = useState<boolean>(false);
-
-  // Estados para la UI
-  const [tabValue, setTabValue] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<Alert>({ type: 'info', message: '', open: false });
-  const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
-
-  // Estados para diálogos
-  const [createOrderDialog, setCreateOrderDialog] = useState(false);
-  const [pauseDialog, setPauseDialog] = useState(false);
-  const [finishDialog, setFinishDialog] = useState(false);
-  const [newOrderData, setNewOrderData] = useState({ product: '', quantity: 0, notes: '' });
-  const [pauseReason, setPauseReason] = useState('');
-  const [finishNotes, setFinishNotes] = useState('');
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
-
-  // Efecto para cargar datos iniciales
+  // Estado para el tab activo
+  const [mainTab, setMainTab] = useState<number>(0); // 0: Dashboard, 1: Órdenes
+  const [detailsTab, setDetailsTab] = useState<number>(0); // 0: Fabricación, 1: Limpieza
+  
+  // Estados para los listados
+  const [manufacturingOrders, setManufacturingOrders] = useState<ManufacturingOrderSummary[]>([]);
+  const [cleaningOrders, setCleaningOrders] = useState<CleaningOrderSummary[]>([]);
+  
+  // Estados para los detalles
+  const [selectedManufacturingOrder, setSelectedManufacturingOrder] = useState<ManufacturingOrderDetail | null>(null);
+  const [selectedCleaningOrder, setSelectedCleaningOrder] = useState<CleaningOrderDetail | null>(null);
+  
+  // Estado para controlar la visualización
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [viewingDetails, setViewingDetails] = useState<boolean>(false);
+  
+  // Función para formatear fechas
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return 'N/A';
+    return format(new Date(dateString), 'dd/MM/yyyy HH:mm:ss', { locale: es });
+  };
+  
+  // Función para formatear tiempo en ms a minutos
+  const formatTimeInMinutes = (timeInMs: number): string => {
+    const minutes = Math.floor(timeInMs / 60000);
+    const seconds = Math.floor((timeInMs % 60000) / 1000);
+    return `${minutes}m ${seconds}s`;
+  };
+  
+  // Cargar los datos iniciales
   useEffect(() => {
-    loadOrders();
-    checkWebSocketStatus();
-    
-    // Iniciar intervalo de actualización
-    const interval = setInterval(() => {
-      if (activeOrder) {
-        refreshActiveOrderData(activeOrder.id);
-      }
-      checkWebSocketStatus();
-    }, 10000);
-    
-    setRefreshInterval(interval);
-    
-    return () => {
-      clearInterval(interval); // Usar interval directamente en vez de refreshInterval
-    };
-  }, [activeOrder?.id]);
-
-  // Efecto para actualizar datos cuando cambia la orden activa
-  useEffect(() => {
-    if (activeOrder) {
-      refreshActiveOrderData(activeOrder.id);
-    }
-  }, [activeOrder]);
-
-  // Funciones para cargar datos
-  const loadOrders = async () => {
+    fetchManufacturingOrders();
+    fetchCleaningOrders();
+  }, []);
+  
+  // Función para obtener las órdenes de fabricación
+  const fetchManufacturingOrders = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/orders`);
-      if (response.data.success) {
-        setOrders(response.data.data);
-        
-        // Establecer orden activa si hay alguna en producción
-        const active = response.data.data.find((o: Order) => o.status === 'active' || o.status === 'paused');
-        if (active) {
-          setActiveOrder(active);
+      const response = await fetch(MANUFACTURING_URL);
+      if (!response.ok) {
+        throw new Error(`Error en la respuesta: ${response.status}`);
+      }
+      const data: ManufacturingOrderList = await response.json();
+      setManufacturingOrders(data.orders);
+    } catch (err: any) {
+      setError(`Error al cargar órdenes de fabricación: ${err.message}`);
+      console.error('Error al cargar órdenes de fabricación:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Función para obtener las órdenes de limpieza
+  const fetchCleaningOrders = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(CLEANING_URL);
+      if (!response.ok) {
+        throw new Error(`Error en la respuesta: ${response.status}`);
+      }
+      const data: CleaningOrderList = await response.json();
+      setCleaningOrders(data.orders);
+    } catch (err: any) {
+      setError(`Error al cargar órdenes de limpieza: ${err.message}`);
+      console.error('Error al cargar órdenes de limpieza:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Función para obtener los detalles de una orden de fabricación
+  const fetchManufacturingOrderDetails = async (orderId: number) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${MANUFACTURING_URL}/${orderId}`);
+      if (!response.ok) {
+        throw new Error(`Error en la respuesta: ${response.status}`);
+      }
+      const data: ManufacturingOrderDetail = await response.json();
+      setSelectedManufacturingOrder(data);
+      setViewingDetails(true);
+      setMainTab(1); // Cambiar a la pestaña de órdenes
+      setDetailsTab(0); // Asegurarse que estamos en detalles de fabricación
+    } catch (err: any) {
+      setError(`Error al cargar detalles de la orden: ${err.message}`);
+      console.error('Error al cargar detalles de la orden:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Función para obtener los detalles de una orden de limpieza
+  const fetchCleaningOrderDetails = async (orderId: number) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${CLEANING_URL}/${orderId}`);
+      if (!response.ok) {
+        throw new Error(`Error en la respuesta: ${response.status}`);
+      }
+      const data: CleaningOrderDetail = await response.json();
+      setSelectedCleaningOrder(data);
+      setViewingDetails(true);
+      setMainTab(1); // Cambiar a la pestaña de órdenes
+      setDetailsTab(1); // Asegurarse que estamos en detalles de limpieza
+    } catch (err: any) {
+      setError(`Error al cargar detalles de la orden: ${err.message}`);
+      console.error('Error al cargar detalles de la orden:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Función para volver a la lista de órdenes
+  const handleBackToList = () => {
+    setViewingDetails(false);
+    setSelectedManufacturingOrder(null);
+    setSelectedCleaningOrder(null);
+  };
+  
+  // Función para refrescar los datos
+  const handleRefresh = () => {
+    if (mainTab === 0) {
+      // Estamos en el dashboard, refrescar datos del dashboard
+      // (El componente DashboardReports tiene su propio método de refresco)
+    } else {
+      // Estamos en la vista de órdenes
+      if (viewingDetails) {
+        if (detailsTab === 0 && selectedManufacturingOrder) {
+          fetchManufacturingOrderDetails(selectedManufacturingOrder.order.id);
+        } else if (detailsTab === 1 && selectedCleaningOrder) {
+          fetchCleaningOrderDetails(selectedCleaningOrder.order.id);
         }
+      } else {
+        fetchManufacturingOrders();
+        fetchCleaningOrders();
       }
-    } catch (error) {
-      showAlert('error', 'Error al cargar órdenes');
-      console.error('Error al cargar órdenes:', error);
-    } finally {
-      setLoading(false);
     }
   };
-
-  const refreshActiveOrderData = async (orderId: string) => {
-    try {
-      // Obtener datos actualizados de la orden
-      const orderResponse = await axios.get(`${API_BASE_URL}/orders/${orderId}`);
-      if (orderResponse.data.success) {
-        setActiveOrder(orderResponse.data.data);
-      }
-      
-      // Obtener contadores actuales
-      const countersResponse = await axios.get(`${API_BASE_URL}/counters/order/${orderId}/current`);
-      if (countersResponse.data.success) {
-        setCounters(countersResponse.data.data);
-      }
-      
-      // Obtener pausas
-      const pausesResponse = await axios.get(`${API_BASE_URL}/pauses/order/${orderId}`);
-      if (pausesResponse.data.success) {
-        setPauses(pausesResponse.data.data);
-      }
-    } catch (error) {
-      console.error('Error al actualizar datos:', error);
+  
+  // Función para cambiar de tab principal
+  const handleMainTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setMainTab(newValue);
+    if (newValue === 0) {
+      // Si volvemos al dashboard, resetear la vista de detalles
+      setViewingDetails(false);
+      setSelectedManufacturingOrder(null);
+      setSelectedCleaningOrder(null);
     }
   };
-
-  const loadOrderSummary = async (orderId: string) => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/orders/${orderId}/summary`);
-      if (response.data.success) {
-        // Agrupamos varias actualizaciones de estado juntas
-        ReactDOM.unstable_batchedUpdates(() => {
-          setOrderSummary(response.data.data);
-          setTabValue(3);
-        });
-      }
-    } catch (error) {
-      showAlert('error', 'Error al cargar resumen de la orden');
-      console.error('Error al cargar resumen:', error);
-    } finally {
-      setLoading(false);
-    }
+  
+  // Función para cambiar de tab de detalles
+  const handleDetailsTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setDetailsTab(newValue);
+    setViewingDetails(false);
+    setSelectedManufacturingOrder(null);
+    setSelectedCleaningOrder(null);
   };
-
-  const loadProductionAnalysis = async (orderId: string) => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/counters/order/${orderId}/analysis`);
-      if (response.data.success) {
-        setAnalysis(response.data.data);
-        setTabValue(4); // Cambiar a la pestaña de análisis
-      }
-    } catch (error) {
-      showAlert('error', 'Error al cargar análisis de producción');
-      console.error('Error al cargar análisis:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const checkWebSocketStatus = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/ws/status`);
-      if (response.data.success) {
-        setWsStatus(response.data.connected);
-      }
-    } catch (error) {
-      setWsStatus(false);
-      console.error('Error al verificar estado WebSocket:', error);
-    }
-  };
-
-  // Funciones de acción para órdenes
-  const createOrder = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/orders`, newOrderData);
-      if (response.data.success) {
-        showAlert('success', 'Orden creada correctamente');
-        setCreateOrderDialog(false);
-        setNewOrderData({ product: '', quantity: 0, notes: '' });
-        await loadOrders();
-      }
-    } catch (error) {
-      showAlert('error', 'Error al crear la orden');
-      console.error('Error al crear orden:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startProduction = async (orderId: string) => {
-    try {
-      setLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/orders/${orderId}/start`);
-      if (response.data.success) {
-        showAlert('success', 'Producción iniciada correctamente');
-        setActiveOrder(response.data.data);
-        await loadOrders();
-        setTabValue(1); // Cambiar a la pestaña de producción
-      }
-    } catch (error) {
-      showAlert('error', 'Error al iniciar producción');
-      console.error('Error al iniciar producción:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const pauseProduction = async () => {
-    if (!activeOrder) return;
-    
-    try {
-      setLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/orders/${activeOrder.id}/pause`, {
-        reason: pauseReason
-      });
-      
-      if (response.data.success) {
-        showAlert('success', 'Producción pausada');
-        setPauseDialog(false);
-        setPauseReason('');
-        setActiveOrder(response.data.data.order);
-        await loadOrders();
-      }
-    } catch (error) {
-      showAlert('error', 'Error al pausar producción');
-      console.error('Error al pausar producción:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resumeProduction = async () => {
-    if (!activeOrder) return;
-    
-    try {
-      setLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/orders/${activeOrder.id}/resume`);
-      
-      if (response.data.success) {
-        showAlert('success', 'Producción reanudada');
-        setActiveOrder(response.data.data);
-        await loadOrders();
-      }
-    } catch (error) {
-      showAlert('error', 'Error al reanudar producción');
-      console.error('Error al reanudar producción:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const finishProduction = async () => {
-    if (!activeOrder) return;
-    
-    try {
-      setLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/orders/${activeOrder.id}/finish`, {
-        finishNotes: finishNotes
-      });
-      
-      if (response.data.success) {
-        showAlert('success', 'Producción finalizada');
-        setFinishDialog(false);
-        setFinishNotes('');
-        setActiveOrder(null);
-        await loadOrders();
-        await loadOrderSummary(response.data.data.id);
-      }
-    } catch (error) {
-      showAlert('error', 'Error al finalizar producción');
-      console.error('Error al finalizar producción:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const reconnectWebSocket = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/ws/reconnect`);
-      if (response.data.success) {
-        showAlert('info', 'Reconexión iniciada');
-        // Verificar estado después de un breve retraso
-        setTimeout(checkWebSocketStatus, 2000);
-      }
-    } catch (error) {
-      showAlert('error', 'Error al reconectar WebSocket');
-      console.error('Error al reconectar:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Funciones auxiliares para la UI
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-
-  const showAlert = (type: 'success' | 'info' | 'warning' | 'error', message: string) => {
-    setAlert({ type, message, open: true });
-  };
-
-  const closeAlert = () => {
-    setAlert({ ...alert, open: false });
-  };
-
-  const formatTimestamp = (timestamp?: string) => {
-    if (!timestamp) return 'N/A';
-    
-    // Intenta parsear la fecha y verifica si es válida
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return 'Fecha inválida';
-    
-    return date.toLocaleString();
-  };
-
-  const getStatusChip = (status: string) => {
+  
+  // Función para obtener el color del chip según el estado
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
-        return <Chip label="Pendiente" color="default" size="small" />;
-      case 'active':
-        return <Chip label="En Producción" color="success" size="small" />;
-      case 'paused':
-        return <Chip label="Pausada" color="warning" size="small" />;
-      case 'completed':
-        return <Chip label="Completada" color="primary" size="small" />;
+      case 'FINISHED':
+        return 'success';
+      case 'IN_PROGRESS':
+        return 'info';
+      case 'PAUSED':
+        return 'warning';
+      case 'CANCELLED':
+        return 'error';
       default:
-        return <Chip label={status} size="small" />;
+        return 'default';
     }
   };
 
-  const formatDuration = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
-
-  // Renderizado de componentes para cada pestaña
-  const renderOrdersTab = () => (
-    <Box mt={3}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h6">Lista de Órdenes</Typography>
-        <Box>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            startIcon={<AddIcon />}
-            onClick={() => setCreateOrderDialog(true)}
-            sx={{ mr: 1 }}
-          >
-            Nueva Orden
-          </Button>
-          <IconButton color="primary" onClick={loadOrders}>
-            <RefreshIcon />
-          </IconButton>
-        </Box>
-      </Box>
-      
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Producto</TableCell>
-              <TableCell>Cantidad</TableCell>
-              <TableCell>Fecha Creación</TableCell>
-              <TableCell>Estado</TableCell>
-              <TableCell>Acciones</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {orders.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center">No hay órdenes registradas</TableCell>
-              </TableRow>
-            ) : (
-              orders.map((order) => (
-                <TableRow key={order.id} sx={{ 
-                  backgroundColor: activeOrder?.id === order.id ? 'rgba(144, 202, 249, 0.1)' : 'inherit' 
-                }}>
-                  <TableCell>{order.id.substring(0, 8)}...</TableCell>
-                  <TableCell>{order.product}</TableCell>
-                  <TableCell>{order.quantity}</TableCell>
-                  <TableCell>{formatTimestamp(order.createdAt)}</TableCell>
-                  <TableCell>{getStatusChip(order.status)}</TableCell>
-                  <TableCell>
-                    {order.status === 'pending' && (
-                      <Button 
-                        size="small" 
-                        variant="outlined" 
-                        color="success"
-                        startIcon={<PlayIcon />}
-                        onClick={() => startProduction(order.id)}
-                      >
-                        Iniciar
-                      </Button>
-                    )}
-                    {(order.status === 'active' || order.status === 'paused') && (
-                      <Button 
-                        size="small" 
-                        variant="outlined" 
-                        color="primary"
-                        onClick={() => {
-                          setActiveOrder(order);
-                          setTabValue(1);
-                        }}
-                      >
-                        Ver Producción
-                      </Button>
-                    )}
-                    {order.status === 'completed' && (
-                      <Button 
-                        size="small" 
-                        variant="outlined" 
-                        color="info"
-                        onClick={() => loadOrderSummary(order.id)}
-                      >
-                        Ver Resumen
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
-  );
-
-  const renderProductionTab = () => (
-    <Box mt={3}>
-      {!activeOrder ? (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>
-          <Typography variant="h6" color="textSecondary">
-            No hay una orden en producción
-          </Typography>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            sx={{ mt: 2 }}
-            onClick={() => setTabValue(0)}
-          >
-            Ir a Órdenes
-          </Button>
-        </Paper>
-      ) : (
-        <>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Detalles de la Orden
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Typography variant="body2" color="textSecondary">ID:</Typography>
-                    <Typography variant="body1">{activeOrder.id.substring(0, 8)}...</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Typography variant="body2" color="textSecondary">Producto:</Typography>
-                    <Typography variant="body1">{activeOrder.product}</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Typography variant="body2" color="textSecondary">Cantidad Objetivo:</Typography>
-                    <Typography variant="body1">{activeOrder.quantity}</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Typography variant="body2" color="textSecondary">Estado:</Typography>
-                    <Typography variant="body1">{getStatusChip(activeOrder.status)}</Typography>
-                  </Grid>
-                </Grid>
-                
-                <Divider sx={{ my: 2 }} />
-                
-                <Typography variant="h6" gutterBottom>
-                  Tiempos
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Typography variant="body2" color="textSecondary">Inicio:</Typography>
-                    <Typography variant="body1">{formatTimestamp(activeOrder.startTime)}</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Typography variant="body2" color="textSecondary">Tiempo Activo:</Typography>
-                    <Typography variant="body1">{formatDuration(activeOrder.totalActiveTime)}</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Typography variant="body2" color="textSecondary">Tiempo de Pausas:</Typography>
-                    <Typography variant="body1">{formatDuration(activeOrder.totalPauseTime)}</Typography>
-                  </Grid>
-                </Grid>
-                
-                <Box mt={2} display="flex" justifyContent="center">
-                  <Button 
-                    variant="contained" 
-                    color="success" 
-                    startIcon={<PlayIcon />}
-                    disabled={activeOrder.status !== 'paused' || !wsStatus}
-                    onClick={resumeProduction}
-                    sx={{ mx: 1 }}
-                  >
-                    Reanudar
-                  </Button>
-                  <Button 
-                    variant="contained" 
-                    color="warning" 
-                    startIcon={<PauseIcon />}
-                    disabled={activeOrder.status !== 'active' || !wsStatus}
-                    onClick={() => setPauseDialog(true)}
-                    sx={{ mx: 1 }}
-                  >
-                    Pausar
-                  </Button>
-                  <Button 
-                    variant="contained" 
-                    color="error" 
-                    startIcon={<StopIcon />}
-                    disabled={!['active', 'paused'].includes(activeOrder.status) || !wsStatus}
-                    onClick={() => setFinishDialog(true)}
-                    sx={{ mx: 1 }}
-                  >
-                    Finalizar
-                  </Button>
-                </Box>
-              </Paper>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardHeader 
-                  title="Botes Buenos" 
-                  sx={{ 
-                    backgroundColor: 'success.light', 
-                    color: 'success.contrastText'
-                  }} 
-                />
-                <CardContent>
-                  <Typography variant="h3" align="center">
-                    {counters.countGood}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardHeader 
-                  title="Botes Malos" 
-                  sx={{ 
-                    backgroundColor: 'error.light', 
-                    color: 'error.contrastText'
-                  }} 
-                />
-                <CardContent>
-                  <Typography variant="h3" align="center">
-                    {counters.countBad}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="body2" color="textSecondary" gutterBottom>
-                  Progreso: {counters.progress}%
-                </Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={Math.min(counters.progress, 100)} 
-                  sx={{ height: 10, borderRadius: 5 }}
-                />
-                <Box display="flex" justifyContent="space-between" mt={1}>
-                  <Typography variant="body2" color="textSecondary">
-                    Total: {counters.total} / {activeOrder.quantity}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    {wsStatus ? (
-                      <Chip 
-                        label="Conectado" 
-                        color="success" 
-                        size="small" 
-                        icon={<CheckCircleIcon />}
-                      />
-                    ) : (
-                      <Chip 
-                        label="Desconectado" 
-                        color="error" 
-                        size="small" 
-                        icon={<ErrorIcon />}
-                        onClick={reconnectWebSocket}
-                      />
-                    )}
-                  </Typography>
-                </Box>
-              </Paper>
-            </Grid>
-          </Grid>
-          
-          <Box mt={3}>
-            <Typography variant="h6" gutterBottom>
-              Historial de Pausas
-            </Typography>
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Inicio</TableCell>
-                    <TableCell>Fin</TableCell>
-                    <TableCell>Duración</TableCell>
-                    <TableCell>Motivo</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {pauses.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center">No hay pausas registradas</TableCell>
-                    </TableRow>
-                  ) : (
-                    pauses.map((pause) => (
-                      <TableRow key={pause.id}>
-                      <TableCell>{pause.startTime ? formatTimestamp(pause.startTime) : 'N/A'}</TableCell>
-                      <TableCell>{pause.endTime ? formatTimestamp(pause.endTime) : '-'}</TableCell>
-                      <TableCell>{pause.formattedDuration || (pause.duration ? formatDuration(pause.duration) : '-')}</TableCell>
-                      <TableCell>{pause.reason}</TableCell>
-                    </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        </>
-      )}
-    </Box>
-  );
-
-  const renderSummaryTab = () => (
-    <Box mt={3}>
-      <FormControl fullWidth sx={{ mb: 3 }}>
-        <InputLabel id="order-select-label">Seleccionar Orden</InputLabel>
-        <Select
-          labelId="order-select-label"
-          value={selectedOrderId}
-          label="Seleccionar Orden"
-          onChange={(e) => {
-            const orderId = e.target.value as string;
-            setSelectedOrderId(orderId);
-            if (orderId) {
-              loadOrderSummary(orderId);
-            } else {
-              setOrderSummary(null);
-            }
-          }}
-        >
-          <MenuItem value="">
-            <em>Seleccionar una orden</em>
-          </MenuItem>
-          {orders
-            .filter(order => order.status === 'completed')
-            .map(order => (
-              <MenuItem key={order.id} value={order.id}>
-                {order.product} - {formatTimestamp(order.createdAt)}
-              </MenuItem>
-            ))}
-        </Select>
-      </FormControl>
-      
-      {orderSummary ? (
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Información General</Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="body2" color="textSecondary">Producto:</Typography>
-                  <Typography variant="body1">{orderSummary.product}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="body2" color="textSecondary">Cantidad Objetivo:</Typography>
-                  <Typography variant="body1">{orderSummary.quantity}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="body2" color="textSecondary">Inicio:</Typography>
-                  <Typography variant="body1">{formatTimestamp(orderSummary.times.start)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="body2" color="textSecondary">Fin:</Typography>
-                  <Typography variant="body1">{formatTimestamp(orderSummary.times.end)}</Typography>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2, height: '100%' }}>
-              <Typography variant="h6" gutterBottom>Producción</Typography>
-              <Typography variant="body2" color="textSecondary">Botes Buenos:</Typography>
-              <Typography variant="body1">{orderSummary.production.countGood}</Typography>
-              <Typography variant="body2" color="textSecondary" mt={1}>Botes Malos:</Typography>
-              <Typography variant="body1">{orderSummary.production.countBad}</Typography>
-              <Typography variant="body2" color="textSecondary" mt={1}>Total Producido:</Typography>
-              <Typography variant="body1">{orderSummary.production.total}</Typography>
-              <Typography variant="body2" color="textSecondary" mt={1}>Tasa de Defectos:</Typography>
-              <Typography variant="body1">
-                {orderSummary.production.defectRate ? `${orderSummary.production.defectRate.toFixed(2)}%` : 'N/A'}
-              </Typography>
-              <Typography variant="body2" color="textSecondary" mt={1}>Producción por Unidad:</Typography>
-              <Typography variant="body1">
-                {orderSummary.production.formattedProductionRate || 'N/A'}
-              </Typography>
-            </Paper>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2, height: '100%' }}>
-              <Typography variant="h6" gutterBottom>Tiempos</Typography>
-              <Typography variant="body2" color="textSecondary">Tiempo Total:</Typography>
-              <Typography variant="body1">{orderSummary.times.formattedTotal}</Typography>
-              <Typography variant="body2" color="textSecondary" mt={1}>Tiempo Activo:</Typography>
-              <Typography variant="body1">{orderSummary.times.formattedTotalActive}</Typography>
-              <Typography variant="body2" color="textSecondary" mt={1}>Tiempo de Pausas:</Typography>
-              <Typography variant="body1">{orderSummary.times.formattedTotalPause}</Typography>
-              <Typography variant="body2" color="textSecondary" mt={1}>Porcentaje Efectivo:</Typography>
-              <Typography variant="body1">
-                {orderSummary.times.total ? 
-                  `${((orderSummary.times.totalActive / orderSummary.times.total) * 100).toFixed(2)}%` : 
-                  'N/A'}
-              </Typography>
-            </Paper>
-          </Grid>
-          
-          <Grid item xs={12}>
-  <Paper sx={{ p: 2 }}>
-    <Typography variant="h6" gutterBottom>Historial de Pausas</Typography>
-    <TableContainer>
+  // Renderizar el componente de lista de órdenes de fabricación
+  const renderManufacturingOrdersList = () => (
+    <TableContainer component={Paper} elevation={3}>
       <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>Inicio</TableCell>
-            <TableCell>Fin</TableCell>
-            <TableCell>Duración</TableCell>
-            <TableCell>Motivo</TableCell>
+            <TableCell><Typography variant="subtitle2">Código</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Artículo</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Descripción</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Cantidad</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Estado</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Fecha Inicio</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Acciones</Typography></TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {orderSummary.pauses.length === 0 ? (
+          {manufacturingOrders.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} align="center">No hay pausas registradas</TableCell>
+              <TableCell colSpan={7} align="center">
+                <Typography>No hay órdenes de fabricación</Typography>
+              </TableCell>
             </TableRow>
           ) : (
-            orderSummary.pauses.map((pause) => (
-              <TableRow key={pause.id}>
-                <TableCell>{pause.startTime ? formatTimestamp(pause.startTime) : 'N/A'}</TableCell>
-                <TableCell>{pause.endTime ? formatTimestamp(pause.endTime) : '-'}</TableCell>
-                <TableCell>{pause.formattedDuration || '-'}</TableCell>
-                <TableCell>{pause.reason}</TableCell>
+            manufacturingOrders.map((order) => (
+              <TableRow key={order.id} className="hover-row">
+                <TableCell>{order.order_code}</TableCell>
+                <TableCell>{order.article_code}</TableCell>
+                <TableCell>{order.description}</TableCell>
+                <TableCell>{order.quantity.toLocaleString()}</TableCell>
+                <TableCell>
+                  <Chip 
+                    label={order.status} 
+                    size="small" 
+                    color={getStatusColor(order.status) as any}
+                  />
+                </TableCell>
+                <TableCell>{formatDate(order.time.start_time)}</TableCell>
+                <TableCell>
+                  <IconButton 
+                    size="small" 
+                    color="primary" 
+                    onClick={() => fetchManufacturingOrderDetails(order.order_id)}
+                  >
+                    <InfoIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+      <style>{tableStyles}</style>
+    </TableContainer>
+  );
+
+  // Renderizar el componente de lista de órdenes de limpieza
+  const renderCleaningOrdersList = () => (
+    <TableContainer component={Paper} elevation={3}>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell><Typography variant="subtitle2">Código</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Tipo</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Área</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Descripción</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Duración Est.</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Estado</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Fecha Inicio</Typography></TableCell>
+            <TableCell><Typography variant="subtitle2">Acciones</Typography></TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {cleaningOrders.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={8} align="center">
+                <Typography>No hay órdenes de limpieza</Typography>
+              </TableCell>
+            </TableRow>
+          ) : (
+            cleaningOrders.map((order) => (
+              <TableRow key={order.id} className="hover-row">
+                <TableCell>{order.order_code}</TableCell>
+                <TableCell>{order.cleaning_type}</TableCell>
+                <TableCell>{order.area_name}</TableCell>
+                <TableCell>{order.description}</TableCell>
+                <TableCell>{order.estimated_duration_minutes} min</TableCell>
+                <TableCell>
+                  <Chip 
+                    label={order.status} 
+                    size="small" 
+                    color={getStatusColor(order.status) as any}
+                  />
+                </TableCell>
+                <TableCell>{formatDate(order.time.start_time)}</TableCell>
+                <TableCell>
+                  <IconButton 
+                    size="small" 
+                    color="primary" 
+                    onClick={() => fetchCleaningOrderDetails(order.order_id)}
+                  >
+                    <InfoIcon />
+                  </IconButton>
+                </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
     </TableContainer>
-  </Paper>
-</Grid>
-          
-          {(orderSummary.notes.initial || orderSummary.notes.final) && (
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>Notas</Typography>
-                {orderSummary.notes.initial && (
-                  <>
-                    <Typography variant="body2" color="textSecondary">Notas Iniciales:</Typography>
-                    <Typography variant="body1" paragraph>{orderSummary.notes.initial}</Typography>
-                  </>
-                )}
-                {orderSummary.notes.final && (
-                  <>
-                    <Typography variant="body2" color="textSecondary">Notas Finales:</Typography>
-                    <Typography variant="body1">{orderSummary.notes.final}</Typography>
-                  </>
-                )}
-              </Paper>
-            </Grid>
-          )}
-          
-          <Grid item xs={12}>
-            <Box display="flex" justifyContent="center">
-              <Button 
-                variant="outlined" 
-                color="primary"
-                onClick={() => loadProductionAnalysis(orderSummary.id)}
-              >
-                Ver Análisis de Producción
-              </Button>
-              <ReportActions
-              orderSummary={orderSummary}
-              analysis={analysis}
-              formatTimestamp={formatTimestamp}
-            />
-            </Box>
-          </Grid>
-        </Grid>
-      ) : (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>
-          <Typography variant="h6" color="textSecondary">
-            Seleccione una orden completada para ver su resumen
-          </Typography>
-        </Paper>
-      )}
-    </Box>
   );
 
-  const renderAnalysisTab = () => (
-    <Box mt={3}>
-      {analysis ? (
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Análisis de Producción</Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="textSecondary">Tasa de Producción (unidades/minuto):</Typography>
-                  <Typography variant="body1">{analysis.productionRate.toFixed(2)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="textSecondary">Producción Media por Hora:</Typography>
-                  <Typography variant="body1">{analysis.averageRate.total.toFixed(2)} unidades</Typography>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="textSecondary">Buenas / Malas por Hora:</Typography>
-                  <Typography variant="body1">
-                    {analysis.averageRate.good.toFixed(2)} / {analysis.averageRate.bad.toFixed(2)}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
-          
-          <Grid item xs={12}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Producción por Hora</Typography>
-              <TableContainer>
+  // Renderizar los detalles de una orden de fabricación
+// Modificación en la función renderManufacturingOrderDetails
+
+const renderManufacturingOrderDetails = () => {
+  if (!selectedManufacturingOrder) return null;
+  
+  const { order, manufacturing_order, time_stats, pauses } = selectedManufacturingOrder;
+  
+  // Calcular botes por minuto real
+  const effectiveTimeMinutes = time_stats.effective_production_time / 60000; // Convertir ms a minutos
+  const realProductionRate = effectiveTimeMinutes > 0 
+    ? (manufacturing_order.total_produced / effectiveTimeMinutes).toFixed(2) 
+    : '0.00';
+  
+  return (
+    <Box>
+      <Button 
+        startIcon={<ArrowBackIcon />} 
+        variant="outlined" 
+        onClick={handleBackToList}
+        sx={{ mb: 2 }}
+      >
+        Volver a la lista
+      </Button>
+      
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={6}>
+          <Card elevation={3}>
+            <CardHeader 
+              title="Información General" 
+              titleTypographyProps={{ variant: 'h6' }}
+            />
+            <CardContent>
+              <Typography variant="body2" gutterBottom>
+                <strong>Código de Orden:</strong> {order.order_code}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Estado:</strong> <Chip 
+                  label={order.status} 
+                  size="small" 
+                  color={getStatusColor(order.status) as any}
+                />
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Fecha de Creación:</strong> {formatDate(order.created_at)}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Inicio:</strong> {formatDate(order.start_time)}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Fin:</strong> {formatDate(order.end_time)}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Notas:</strong> {order.notes || 'Sin notas'}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} md={6}>
+          <Card elevation={3}>
+            <CardHeader 
+              title="Detalles de Producción" 
+              titleTypographyProps={{ variant: 'h6' }}
+            />
+            <CardContent>
+              <Typography variant="body2" gutterBottom>
+                <strong>Artículo:</strong> {manufacturing_order.article_code}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Descripción:</strong> {manufacturing_order.description}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Cantidad Objetivo:</strong> {manufacturing_order.quantity.toLocaleString()}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Tasa de Producción Objetivo:</strong> {manufacturing_order.target_production_rate} unidades/min
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Tasa de Producción Real:</strong> {realProductionRate} unidades/min
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Unidades Buenas:</strong> {manufacturing_order.good_units.toLocaleString()}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Unidades Defectuosas:</strong> {manufacturing_order.defective_units.toLocaleString()}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Total Producido:</strong> {manufacturing_order.total_produced.toLocaleString()}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Porcentaje de Completado:</strong> {manufacturing_order.completion_percentage}%
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} md={6}>
+          <Card elevation={3}>
+            <CardHeader 
+              title="Estadísticas de Tiempo" 
+              titleTypographyProps={{ variant: 'h6' }}
+            />
+            <CardContent>
+              <Typography variant="body2" gutterBottom>
+                <strong>Duración Total:</strong> {formatTimeInMinutes(time_stats.total_duration)}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Tiempo Total de Pausa:</strong> {formatTimeInMinutes(time_stats.total_pause_time)}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Tiempo Efectivo de Producción:</strong> {formatTimeInMinutes(time_stats.effective_production_time)}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} md={6}>
+          <Card elevation={3}>
+            <CardHeader 
+              title="Pausas" 
+              titleTypographyProps={{ variant: 'h6' }}
+            />
+            <CardContent>
+              {pauses.length === 0 ? (
+                <Typography variant="body2">No hay pausas registradas</Typography>
+              ) : (
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Hora</TableCell>
-                      <TableCell>Buenos</TableCell>
-                      <TableCell>Malos</TableCell>
-                      <TableCell>Total</TableCell>
+                      <TableCell>Razón</TableCell>
+                      <TableCell>Inicio</TableCell>
+                      <TableCell>Fin</TableCell>
+                      <TableCell>Duración</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {analysis.timeIntervals.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} align="center">No hay datos de producción por intervalos</TableCell>
+                    {pauses.map((pause) => (
+                      <TableRow key={pause.id} className="hover-row">
+                        <TableCell>{pause.reason}</TableCell>
+                        <TableCell>{formatDate(pause.start_time)}</TableCell>
+                        <TableCell>{formatDate(pause.end_time)}</TableCell>
+                        <TableCell>{formatTimeInMinutes(pause.duration_ms)}</TableCell>
                       </TableRow>
-                    ) : (
-                      analysis.timeIntervals.map((interval, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{interval.hour}</TableCell>
-                          <TableCell>{interval.good}</TableCell>
-                          <TableCell>{interval.bad}</TableCell>
-                          <TableCell>{interval.total}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
-              </TableContainer>
-            </Paper>
-          </Grid>
-          {orderSummary && (
-          <Grid item xs={12}>
-            <Box mt={2}>
-              <Typography variant="h6" align="center" gutterBottom>
-                Opciones de Reporte
-              </Typography>
-              <ReportActions
-                orderSummary={orderSummary}
-                analysis={analysis}
-                formatTimestamp={formatTimestamp}
-              />
-            </Box>
-          </Grid>
-        )}
-        </Grid>
-      ) : (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>
-          <Typography variant="h6" color="textSecondary">
-            Seleccione una orden y utilice "Ver Análisis de Producción" para visualizar estadísticas
-          </Typography>
-        </Paper>
-      )}
-    </Box>
-  );
-  const renderReportsTab = () => (
-    <Box mt={3}>
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Generación de Reportes
-        </Typography>
-        <Typography paragraph>
-          Seleccione una orden completada para generar reportes detallados en diferentes formatos.
-        </Typography>
-        
-        <FormControl fullWidth sx={{ mb: 3 }}>
-          <InputLabel id="report-order-select-label">Seleccionar Orden</InputLabel>
-          <Select
-            labelId="report-order-select-label"
-            value={selectedOrderId}
-            label="Seleccionar Orden"
-            onChange={(e) => {
-              const orderId = e.target.value as string;
-              setSelectedOrderId(orderId);
-              if (orderId) {
-                loadOrderSummary(orderId);
-                // Opcionalmente cargar también el análisis
-                loadProductionAnalysis(orderId);
-              } else {
-                setOrderSummary(null);
-                setAnalysis(null);
-              }
-            }}
-          >
-            <MenuItem value="">
-              <em>Seleccionar una orden</em>
-            </MenuItem>
-            {orders
-              .filter(order => order.status === 'completed')
-              .map(order => (
-                <MenuItem key={order.id} value={order.id}>
-                  {order.product} - {formatTimestamp(order.createdAt)}
-                </MenuItem>
-              ))}
-          </Select>
-        </FormControl>
-        
-        {orderSummary ? (
-          <Box>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardHeader title="Información de la Orden" />
-                  <CardContent>
-                    <Typography><strong>Producto:</strong> {orderSummary.product}</Typography>
-                    <Typography><strong>Cantidad:</strong> {orderSummary.quantity}</Typography>
-                    <Typography><strong>Fecha inicio:</strong> {formatTimestamp(orderSummary.times.start)}</Typography>
-                    <Typography><strong>Fecha fin:</strong> {formatTimestamp(orderSummary.times.end)}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardHeader title="Resultados de Producción" />
-                  <CardContent>
-                    <Typography><strong>Botes Buenos:</strong> {orderSummary.production.countGood}</Typography>
-                    <Typography><strong>Botes Malos:</strong> {orderSummary.production.countBad}</Typography>
-                    <Typography><strong>Total:</strong> {orderSummary.production.total}</Typography>
-                    <Typography><strong>Tasa de Defectos:</strong> {orderSummary.production.defectRate ? `${orderSummary.production.defectRate.toFixed(2)}%` : 'N/A'}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-            
-            <Box mt={4}>
-              <Typography variant="h6" gutterBottom>
-                Opciones de Reporte
-              </Typography>
-              <ReportActions
-                orderSummary={orderSummary}
-                analysis={analysis}
-                formatTimestamp={formatTimestamp}
-              />
-            </Box>
-          </Box>
-        ) : (
-          <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: '#f5f5f5' }}>
-            <Typography color="textSecondary">
-              Seleccione una orden completada para ver sus opciones de reporte
-            </Typography>
-          </Paper>
-        )}
-      </Paper>
-    </Box>
-  );
-
-  const renderConfigTab = () => (
-    <Box mt={3}>
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>Estado de Conexión</Typography>
-            <Box display="flex" alignItems="center" my={2}>
-              <Typography variant="body1" mr={2}>WebSocket:</Typography>
-              {wsStatus ? (
-                <Chip 
-                  label="Conectado" 
-                  color="success" 
-                  icon={<CheckCircleIcon />}
-                />
-              ) : (
-                <Chip 
-                  label="Desconectado" 
-                  color="error" 
-                  icon={<ErrorIcon />}
-                />
               )}
-            </Box>
-            <Button 
-              variant="contained" 
-              color="primary"
-              onClick={reconnectWebSocket}
-              disabled={wsStatus}
-            >
-              Reconectar
-            </Button>
-          </Paper>
-        </Grid>
-        
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>Configuración de Actualización</Typography>
-            <FormControl fullWidth sx={{ mt: 2 }}>
-              <InputLabel id="refresh-interval-label">Intervalo de Actualización</InputLabel>
-              <Select
-                labelId="refresh-interval-label"
-                value="10000"
-                label="Intervalo de Actualización"
-                onChange={(e) => {
-                  const value = parseInt(e.target.value as string);
-                  if (refreshInterval) {
-                    clearInterval(refreshInterval);
-                  }
-                  
-                  if (value > 0) {
-                    const interval = setInterval(() => {
-                      if (activeOrder) {
-                        refreshActiveOrderData(activeOrder.id);
-                      }
-                      checkWebSocketStatus();
-                    }, value);
-                    
-                    setRefreshInterval(interval);
-                    showAlert('success', `Intervalo actualizado a ${value/1000} segundos`);
-                  }
-                }}
-              >
-                <MenuItem value="5000">5 segundos</MenuItem>
-                <MenuItem value="10000">10 segundos</MenuItem>
-                <MenuItem value="30000">30 segundos</MenuItem>
-                <MenuItem value="60000">1 minuto</MenuItem>
-              </Select>
-            </FormControl>
-          </Paper>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
     </Box>
   );
+};
+
+  // Renderizar los detalles de una orden de limpieza
+  const renderCleaningOrderDetails = () => {
+    if (!selectedCleaningOrder) return null;
+    
+    const { order, cleaning_order, time_stats } = selectedCleaningOrder;
+    
+    return (
+      <Box>
+        <Button 
+          startIcon={<ArrowBackIcon />} 
+          variant="outlined" 
+          onClick={handleBackToList}
+          sx={{ mb: 2 }}
+        >
+          Volver a la lista
+        </Button>
+        
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Card elevation={3}>
+              <CardHeader 
+                title="Información General" 
+                titleTypographyProps={{ variant: 'h6' }}
+              />
+              <CardContent>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Código de Orden:</strong> {order.order_code}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Estado:</strong> <Chip 
+                    label={order.status} 
+                    size="small" 
+                    color={getStatusColor(order.status) as any}
+                  />
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Fecha de Creación:</strong> {formatDate(order.created_at)}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Inicio:</strong> {formatDate(order.start_time)}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Fin:</strong> {formatDate(order.end_time)}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Notas:</strong> {order.notes || 'Sin notas'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Card elevation={3}>
+              <CardHeader 
+                title="Detalles de Limpieza" 
+                titleTypographyProps={{ variant: 'h6' }}
+              />
+              <CardContent>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Tipo de Limpieza:</strong> {cleaning_order.cleaning_type}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>ID de Área:</strong> {cleaning_order.area_id}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Nombre de Área:</strong> {cleaning_order.area_name}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Descripción:</strong> {cleaning_order.description}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Operador:</strong> {cleaning_order.operator_name || 'No asignado'}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Duración Estimada:</strong> {cleaning_order.estimated_duration_minutes} minutos
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Completado:</strong> {cleaning_order.completed ? 'Sí' : 'No'}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Notas de Finalización:</strong> {cleaning_order.completion_notes || 'Sin notas'}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Productos Utilizados:</strong> {cleaning_order.products_used || 'No especificados'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Card elevation={3}>
+              <CardHeader 
+                title="Estadísticas de Tiempo" 
+                titleTypographyProps={{ variant: 'h6' }}
+              />
+              <CardContent>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Duración Total:</strong> {formatTimeInMinutes(time_stats.duration_ms)}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Duración en Minutos:</strong> {time_stats.duration_minutes.toFixed(2)} minutos
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Comparación Estimado vs Real:</strong> {(time_stats.estimated_vs_actual * 100).toFixed(2)}%
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Box>
+    );
+  };
+
+  // Renderizar el contenido principal basado en la pestaña seleccionada
+  const renderContent = () => {
+    if (mainTab === 0) {
+      // Mostrar el dashboard
+      return <DashboardReports />;
+    } else {
+      // Mostrar la vista de órdenes
+      if (viewingDetails) {
+        return detailsTab === 0 
+          ? renderManufacturingOrderDetails() 
+          : renderCleaningOrderDetails();
+      } else {
+        return (
+          <>
+            <Paper sx={{ mb: 3 }} elevation={2}>
+              <Tabs
+                value={detailsTab}
+                onChange={handleDetailsTabChange}
+                variant="fullWidth"
+                centered
+              >
+                <Tab 
+                  icon={<ShippingIcon />} 
+                  label="Órdenes de Fabricación" 
+                  iconPosition="start"
+                />
+                <Tab 
+                  icon={<CleaningIcon />} 
+                  label="Órdenes de Limpieza" 
+                  iconPosition="start"
+                />
+              </Tabs>
+            </Paper>
+            
+            {detailsTab === 0 ? renderManufacturingOrdersList() : renderCleaningOrdersList()}
+          </>
+        );
+      }
+    }
+  };
 
   return (
-    <Box sx={{ width: '100%', p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Sistema de Monitorización de Fabricación
-      </Typography>
-      
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs 
-          value={tabValue} 
-          onChange={handleTabChange} 
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          <Tab label="Órdenes" />
-          <Tab label="Producción" />
-          <Tab label="Históricos" disabled />
-          <Tab label="Resumen" />
-          <Tab label="Análisis" />
-          <Tab label="Reportes" />
-          <Tab label="Configuración" />
+    <Container maxWidth="xl">
+      <Box sx={{ my: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            {mainTab === 0 ? 'Dashboard' : 
+              (viewingDetails ? 
+                (detailsTab === 0 ? 'Detalles de Orden de Fabricación' : 'Detalles de Orden de Limpieza') : 
+                'Listado de Órdenes'
+              )
+            }
+          </Typography>
+          
+          <Tooltip title="Refrescar datos">
+            <IconButton onClick={handleRefresh} color="primary">
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+        
+        {error && (
+          <Paper elevation={2} sx={{ p: 2, mb: 2, bgcolor: '#FFF4F4' }}>
+            <Typography color="error">{error}</Typography>
+          </Paper>
+        )}
+        
+        {/* Tabs principales */}
+        <Paper sx={{ mb: 3 }} elevation={2}>
+          <Tabs
+            value={mainTab}
+            onChange={handleMainTabChange}
+            variant="fullWidth"
+            centered
+          >
+            <Tab 
+              icon={<DashboardIcon />} 
+              label="Dashboard" 
+              iconPosition="start"
+            />
+            <Tab
+            icon={<ChartIcon />} 
+            label="Órdenes" 
+            iconPosition="start"
+          />
         </Tabs>
-      </Box>
+      </Paper>
       
-      {loading && <LinearProgress sx={{ mt: 1 }} />}
-      
-      <Box role="tabpanel" hidden={tabValue !== 0}>
-        {tabValue === 0 && renderOrdersTab()}
-      </Box>
-      <Box role="tabpanel" hidden={tabValue !== 1}>
-        {tabValue === 1 && renderProductionTab()}
-      </Box>
-      <Box role="tabpanel" hidden={tabValue !== 3}>
-        {tabValue === 3 && renderSummaryTab()}
-      </Box>
-      <Box role="tabpanel" hidden={tabValue !== 4}>
-        {tabValue === 4 && renderAnalysisTab()}
-      </Box>
-
-      <Box role="tabpanel" hidden={tabValue !== 5}>
-  {tabValue === 5 && renderReportsTab()}
-</Box>
-<Box role="tabpanel" hidden={tabValue !== 6}>
-  {tabValue === 6 && renderConfigTab()}
-</Box>
-  
-      
-      {/* Diálogo para crear orden */}
-      <Dialog 
-        open={createOrderDialog} 
-        onClose={() => setCreateOrderDialog(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Crear Nueva Orden</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            Complete la información para crear una nueva orden de fabricación.
-          </DialogContentText>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Producto"
-            fullWidth
-            variant="outlined"
-            value={newOrderData.product}
-            onChange={(e) => setNewOrderData({ ...newOrderData, product: e.target.value })}
-            required
-          />
-          <TextField
-            margin="dense"
-            label="Cantidad Objetivo"
-            type="number"
-            fullWidth
-            variant="outlined"
-            value={newOrderData.quantity || ''}
-            onChange={(e) => setNewOrderData({ ...newOrderData, quantity: parseInt(e.target.value) })}
-            required
-          />
-          <TextField
-            margin="dense"
-            label="Notas"
-            fullWidth
-            variant="outlined"
-            multiline
-            rows={4}
-            value={newOrderData.notes}
-            onChange={(e) => setNewOrderData({ ...newOrderData, notes: e.target.value })}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateOrderDialog(false)}>Cancelar</Button>
-          <Button 
-            onClick={createOrder} 
-            variant="contained" 
-            color="primary"
-            disabled={!newOrderData.product || !newOrderData.quantity}
-          >
-            Crear Orden
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* Diálogo para pausar */}
-      <Dialog 
-        open={pauseDialog} 
-        onClose={() => setPauseDialog(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Pausar Producción</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            Ingrese el motivo de la pausa.
-          </DialogContentText>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Motivo de la Pausa"
-            fullWidth
-            variant="outlined"
-            multiline
-            rows={4}
-            value={pauseReason}
-            onChange={(e) => setPauseReason(e.target.value)}
-            required
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPauseDialog(false)}>Cancelar</Button>
-          <Button 
-            onClick={pauseProduction} 
-            variant="contained" 
-            color="warning"
-            disabled={!pauseReason}
-          >
-            Confirmar Pausa
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* Diálogo para finalizar */}
-      <Dialog 
-        open={finishDialog} 
-        onClose={() => setFinishDialog(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Finalizar Producción</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            ¿Está seguro de que desea finalizar la producción de esta orden?
-          </DialogContentText>
-          <TextField
-            margin="dense"
-            label="Notas de Finalización"
-            fullWidth
-            variant="outlined"
-            multiline
-            rows={4}
-            value={finishNotes}
-            onChange={(e) => setFinishNotes(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setFinishDialog(false)}>Cancelar</Button>
-          <Button 
-            onClick={finishProduction} 
-            variant="contained" 
-            color="error"
-          >
-            Finalizar Producción
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* Snackbar para alertas */}
-      <Snackbar 
-        open={alert.open} 
-        autoHideDuration={6000} 
-        onClose={closeAlert}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert 
-          onClose={closeAlert} 
-          severity={alert.type} 
-          variant="filled"
-          sx={{ width: '100%' }}
-        >
-          {alert.message}
-        </Alert>
-      </Snackbar>
+      {isLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        renderContent()
+      )}
     </Box>
-  );
+  </Container>
+);
 };
 
 export default CremerDetails;
