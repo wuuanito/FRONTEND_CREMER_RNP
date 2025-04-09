@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { 
   Box, 
   Typography, 
@@ -68,7 +67,7 @@ const Cremer: React.FC = () => {
   const [productionRate, setProductionRate] = useState<number>(0);
   const [estimatedEndTime, setEstimatedEndTime] = useState<Date | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [wsStatus, setWsStatus] = useState<boolean>(true); // Simplificado
+  const [wsStatus] = useState<boolean>(true); // Simplificado
   const [machineStatus, setMachineStatus] = useState({
     verde: false,
     amarillo: false,

@@ -16,12 +16,7 @@ import {
   Button,
   IconButton,
   Tooltip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Alert,
-  Chip,
+
   LinearProgress,
   useTheme
 } from '@mui/material';
@@ -37,8 +32,6 @@ import {
   DateRange as DateRangeIcon
 } from '@mui/icons-material';
 import { 
-  LineChart, 
-  Line, 
   BarChart, 
   Bar,
   PieChart, 
@@ -52,7 +45,7 @@ import {
   ResponsiveContainer,
   Sector
 } from 'recharts';
-import { format, parseISO, subMonths, subDays } from 'date-fns';
+import { format, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // API URLs
@@ -486,12 +479,7 @@ const DashboardReports: React.FC = () => {
     }));
     
     // Datos para gráfico de mantenimiento/limpieza
-    const maintCleanData = [
-      { name: 'Mant. Completado', value: maintenance.completed_count },
-      { name: 'Mant. Pendiente', value: maintenance.total_orders - maintenance.completed_count },
-      { name: 'Limp. Completada', value: parseInt(cleaning.completed_count) },
-      { name: 'Limp. Pendiente', value: cleaning.total_orders - parseInt(cleaning.completed_count) },
-    ];
+
     
     // NOTA: Ya no declaramos activePieIndex aquí, lo usamos directamente del estado del componente
     
@@ -654,7 +642,7 @@ const DashboardReports: React.FC = () => {
                           dataKey="value"
                           onMouseEnter={(_, index) => setActivePieIndex(index)}
                         >
-                          {productionData.map((entry, index) => (
+                          {productionData.map((_entry, index) => (
                             <Cell key={`cell-${index}`} fill={index === 0 ? COLORS.good : COLORS.defective} />
                           ))}
                         </Pie>
@@ -693,7 +681,7 @@ const DashboardReports: React.FC = () => {
                           dataKey="value"
                           label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                         >
-                          {pausesData.map((entry, index) => (
+                          {pausesData.map((_entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS.pieColors[index % COLORS.pieColors.length]} />
                           ))}
                         </Pie>
@@ -760,10 +748,6 @@ const renderProductionReport = () => {
     ];
     
     // Datos para el gráfico de eficiencia
-    const efficiencyData = {
-      name: 'Eficiencia',
-      value: parseFloat(summary.efficiency_rate),
-    };
     
     return (
       <Box>
@@ -922,7 +906,7 @@ const renderProductionReport = () => {
                         dataKey="value"
                         label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                       >
-                        {timeData.map((entry, index) => (
+                        {timeData.map((_entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS.pieColors[index % COLORS.pieColors.length]} />
                         ))}
                       </Pie>
@@ -1164,7 +1148,7 @@ const renderProductionReport = () => {
                           dataKey="value"
                           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         >
-                          {topReasons.map((entry, index) => (
+                          {topReasons.map((_entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS.pieColors[index % COLORS.pieColors.length]} />
                           ))}
                         </Pie>
@@ -1390,7 +1374,7 @@ const renderProductionReport = () => {
                           dataKey="value"
                           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         >
-                          {cleaningTypeData.map((entry, index) => (
+                          {cleaningTypeData.map((_entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS.pieColors[index % COLORS.pieColors.length]} />
                           ))}
                         </Pie>
@@ -1430,7 +1414,7 @@ const renderProductionReport = () => {
                           dataKey="value"
                           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         >
-                          {cleaningAreaData.map((entry, index) => (
+                          {cleaningAreaData.map((_entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS.pieColors[index % COLORS.pieColors.length]} />
                           ))}
                         </Pie>
