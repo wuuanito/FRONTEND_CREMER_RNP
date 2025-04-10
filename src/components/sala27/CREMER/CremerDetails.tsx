@@ -27,7 +27,7 @@ import {
   MenuItem,
   Select,
   Alert,
-  Divider,
+  
   SelectChangeEvent
 } from '@mui/material';
 import { 
@@ -452,8 +452,7 @@ const CremerDetails: React.FC = () => {
         }));
       } else if (selectedReportType === 'production_efficiency') {
         // Reporte de eficiencia de producción
-        const startTime = new Date(selectedManufacturingOrder.order.start_time);
-        const endTime = selectedManufacturingOrder.order.end_time ? new Date(selectedManufacturingOrder.order.end_time) : new Date();
+
         const productionTimeHours = (selectedManufacturingOrder.time_stats.effective_production_time / 3600000).toFixed(2);
         
         // Calcular eficiencia (unidades/hora)
