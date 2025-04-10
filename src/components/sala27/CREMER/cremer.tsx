@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, act } from 'react';
 import { 
   Box, 
   Typography, 
@@ -151,7 +151,7 @@ const Cremer: React.FC = () => {
         setProductionRate(rate);
         
         // Actualizar tiempo estimado
-        if (rate > 0 && (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS')) {
+        if (rate > 0 && (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED')) {
           const remainingItems = activeOrder.quantity - total;
           const minutesRemaining = remainingItems / rate;
           const estimatedEnd = new Date();
@@ -206,7 +206,8 @@ const Cremer: React.FC = () => {
       const activeOrders = data.orders.filter(order => 
         order.status === 'STARTED' || 
         order.status === 'IN_PROGRESS' || 
-        order.status === 'PAUSED'
+        order.status === 'PAUSED' || 
+        order.status === 'RESUMED' // Si se agrega un nuevo estado, incluirlo aquí
       );
       
       console.log("Órdenes activas encontradas:", activeOrders.length);
@@ -253,7 +254,7 @@ const Cremer: React.FC = () => {
 
   // Actualizar estado de la máquina según el estado de la orden
   const updateMachineStatus = (status: string) => {
-    if (status === 'STARTED' || status === 'IN_PROGRESS') {
+    if (status === 'STARTED' || status === 'IN_PROGRESS' || status === 'RESUMED') {
       setMachineStatus({ verde: true, amarillo: false, rojo: false });
     } else if (status === 'PAUSED') {
       setMachineStatus({ verde: false, amarillo: true, rojo: false });
@@ -273,6 +274,7 @@ const Cremer: React.FC = () => {
     switch (status) {
       case 'STARTED':
       case 'IN_PROGRESS':
+      case 'RESUMED':
         return 'Producción';
       case 'PAUSED':
         return 'Pausada';
@@ -280,6 +282,7 @@ const Cremer: React.FC = () => {
         return 'Completada';
       case 'CANCELLED':
         return 'Cancelada';
+      
       default:
         return 'Detenida';
     }
@@ -351,7 +354,7 @@ const Cremer: React.FC = () => {
                 sx={{ 
                   borderRadius: '12px',
                   backgroundColor: activeOrder.status === 'PAUSED' ? '#ff9800' : 
-                                  (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS') ? '#4caf50' : '#ef5350',
+                                  (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status=== 'RESUMED') ? '#4caf50' : '#ef5350',
                   color: 'white',
                   height: '20px',
                   fontSize: '0.7rem',
@@ -471,7 +474,7 @@ const Cremer: React.FC = () => {
                   }}
                   
                   // Forzar actualización del componente cada segundo usando Date.now
-                  key={(activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS') ? Date.now() : 'static-rate'}
+                  key={(activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED') ? Date.now() : 'static-rate'}
                 >
                   {productionRate > 0 ? `${Math.round(productionRate)} bpm` : '—'}
                 </Typography>
@@ -501,7 +504,7 @@ const Cremer: React.FC = () => {
                   variant="body2" 
                   sx={{ ml: 0.5, color: '#212121' }}
                 >
-                  {(activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS') && productionRate > 0 ? formatTime(estimatedEndTime) : '—'}
+                  {(activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED') && productionRate > 0 ? formatTime(estimatedEndTime) : '—'}
                 </Typography>
               </Box>
             </Box>
