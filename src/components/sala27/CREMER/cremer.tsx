@@ -8,7 +8,8 @@ import {
   LinearProgress,
   IconButton,
   Tooltip,
-  Stack
+  Stack,
+  Divider
 } from '@mui/material';
 import { 
   FiberManualRecord as FiberManualRecordIcon,
@@ -16,7 +17,8 @@ import {
   Speed as SpeedIcon,
   AccessTime as AccessTimeIcon,
   Refresh as RefreshIcon,
-  BarChart as BarChartIcon
+  BarChart as BarChartIcon,
+  CleaningServices as CleaningIcon
 } from '@mui/icons-material';
 // Importamos estilos
 import './styles/cremer.scss';
@@ -54,10 +56,41 @@ interface ManufacturingOrderList {
   orders: ManufacturingOrderSummary[];
 }
 
+// Interfaces para órdenes de limpieza
+interface CleaningOrderSummary {
+  id: number;
+  order_id: number;
+  order_code: string;
+  status: string;
+  cleaning_type: string;
+  area_id: string;
+  area_name: string;
+  description: string;
+  associated_manufacturing_order_id: number | null;
+  operator_name: string | null;
+  completed: boolean;
+  estimated_duration_minutes: number;
+  time: {
+    start_time: string;
+    end_time: string | null;
+    created_at: string;
+    updated_at: string;
+    duration: number;
+  };
+}
+
+interface CleaningOrderList {
+  total: number;
+  limit: number;
+  offset: number;
+  orders: CleaningOrderSummary[];
+}
+
 // Componente simplificado según diseño de referencia
 const Cremer: React.FC = () => {
   // Estados básicos
   const [activeOrder, setActiveOrder] = useState<ManufacturingOrderSummary | null>(null);
+  const [activeCleaningOrder, setActiveCleaningOrder] = useState<CleaningOrderSummary | null>(null);
   const [counters, setCounters] = useState({
     countGood: 0, 
     countBad: 0, 
@@ -178,7 +211,10 @@ const Cremer: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      await loadLatestActiveOrder();
+      await Promise.all([
+        loadLatestActiveOrder(),
+        loadLatestActiveCleaningOrder()
+      ]);
     } catch (error) {
       console.error('Error al cargar datos:', error);
     } finally {
@@ -244,11 +280,83 @@ const Cremer: React.FC = () => {
         setCounters({ countGood: 0, countBad: 0, total: 0, progress: 0 });
         setProductionRate(0);
         setEstimatedEndTime(null);
-        setMachineStatus({ verde: false, amarillo: false, rojo: true });
+        
+        // Solo actualizamos el semáforo a rojo si tampoco hay órdenes de limpieza activas
+        if (!activeCleaningOrder) {
+          setMachineStatus({ verde: false, amarillo: false, rojo: true });
+        }
       }
     } catch (error) {
       console.error('Error al cargar orden activa:', error);
-      setMachineStatus({ verde: false, amarillo: false, rojo: true });
+      setActiveOrder(null);
+      
+      // Solo actualizamos el semáforo a rojo si tampoco hay órdenes de limpieza activas
+      if (!activeCleaningOrder) {
+        setMachineStatus({ verde: false, amarillo: false, rojo: true });
+      }
+    }
+  };
+
+  // Cargar la última orden de limpieza activa
+  const loadLatestActiveCleaningOrder = async () => {
+    try {
+      console.log("Cargando órdenes de limpieza...");
+      
+      // Obtener todas las órdenes de limpieza
+      const response = await fetch(`${API_BASE_URL}/cleaning`);
+      
+      if (!response.ok) {
+        throw new Error(`Error en la respuesta: ${response.status}`);
+      }
+      
+      const data: CleaningOrderList = await response.json();
+      console.log("Datos de limpieza recibidos:", data);
+      
+      // Filtrar para obtener solo órdenes de limpieza activas
+      const activeCleaningOrders = data.orders.filter(order => 
+        order.status === 'STARTED' || 
+        order.status === 'IN_PROGRESS' || 
+        order.status === 'RESUMED'
+      );
+      
+      console.log("Órdenes de limpieza activas encontradas:", activeCleaningOrders.length);
+      
+      if (activeCleaningOrders.length > 0) {
+        // Ordenar por start_time (la más reciente primero)
+        activeCleaningOrders.sort((a, b) => {
+          const timeA = new Date(a.time.start_time).getTime();
+          const timeB = new Date(b.time.start_time).getTime();
+          return timeB - timeA; // Orden descendente
+        });
+        
+        // Tomar la primera (más reciente)
+        const latestCleaningOrder = activeCleaningOrders[0];
+        console.log("Orden de limpieza activa seleccionada:", latestCleaningOrder);
+        
+        setActiveCleaningOrder(latestCleaningOrder);
+        
+        // Si no hay una orden de fabricación activa, la limpieza determina el estado del semáforo
+        if (!activeOrder) {
+          updateMachineStatus('CLEANING');
+        }
+      } else {
+        // No hay órdenes de limpieza activas
+        console.log("No se encontraron órdenes de limpieza activas");
+        setActiveCleaningOrder(null);
+        
+        // Si no hay orden de producción activa, el semáforo debe estar en rojo
+        if (!activeOrder) {
+          setMachineStatus({ verde: false, amarillo: false, rojo: true });
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar orden de limpieza activa:', error);
+      setActiveCleaningOrder(null);
+      
+      // Si no hay orden de producción activa, el semáforo debe estar en rojo
+      if (!activeOrder) {
+        setMachineStatus({ verde: false, amarillo: false, rojo: true });
+      }
     }
   };
 
@@ -257,6 +365,8 @@ const Cremer: React.FC = () => {
     if (status === 'STARTED' || status === 'IN_PROGRESS' || status === 'RESUMED') {
       setMachineStatus({ verde: true, amarillo: false, rojo: false });
     } else if (status === 'PAUSED') {
+      setMachineStatus({ verde: false, amarillo: true, rojo: false });
+    } else if (status === 'CLEANING') {
       setMachineStatus({ verde: false, amarillo: true, rojo: false });
     } else {
       setMachineStatus({ verde: false, amarillo: false, rojo: true });
@@ -282,10 +392,37 @@ const Cremer: React.FC = () => {
         return 'Completada';
       case 'CANCELLED':
         return 'Cancelada';
-      
+      case 'CLEANING':
+        return 'Limpieza';
       default:
         return 'Detenida';
     }
+  };
+  
+  // Calcular el tiempo restante para la orden de limpieza
+  const getCleaningTimeRemaining = (): string => {
+    if (!activeCleaningOrder) return '—';
+    
+    // Obtener el tiempo de inicio
+    const startTime = new Date(activeCleaningOrder.time.start_time).getTime();
+    const now = new Date().getTime();
+    
+    // Calcular duración estimada en milisegundos
+    const estimatedDurationMs = activeCleaningOrder.estimated_duration_minutes * 60 * 1000;
+    
+    // Calcular tiempo transcurrido
+    const elapsedTime = now - startTime;
+    
+    // Calcular tiempo restante
+    const remainingTime = estimatedDurationMs - elapsedTime;
+    
+    if (remainingTime <= 0) {
+      return 'Completando...';
+    }
+    
+    // Convertir a minutos para mostrar
+    const remainingMinutes = Math.round(remainingTime / 60000);
+    return `${remainingMinutes} min`;
   };
 
   return (
@@ -354,7 +491,25 @@ const Cremer: React.FC = () => {
                 sx={{ 
                   borderRadius: '12px',
                   backgroundColor: activeOrder.status === 'PAUSED' ? '#ff9800' : 
-                                  (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status=== 'RESUMED') ? '#4caf50' : '#ef5350',
+                                  (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED') ? '#4caf50' : '#ef5350',
+                  color: 'white',
+                  height: '20px',
+                  fontSize: '0.7rem',
+                  fontWeight: 500,
+                  '& .MuiChip-label': { px: 1 }
+                }}
+              />
+            </Box>
+          )}
+          
+          {!activeOrder && activeCleaningOrder && (
+            <Box flexGrow={1} display="flex" justifyContent="flex-end">
+              <Chip 
+                label="Limpieza"
+                size="small"
+                sx={{ 
+                  borderRadius: '12px',
+                  backgroundColor: '#ff9800',
                   color: 'white',
                   height: '20px',
                   fontSize: '0.7rem',
@@ -508,12 +663,122 @@ const Cremer: React.FC = () => {
                 </Typography>
               </Box>
             </Box>
+            
+            {/* Mostrar orden de limpieza activa si existe */}
+            {activeCleaningOrder && (
+              <>
+                <Divider sx={{ my: 1.5 }} />
+                
+                <Box 
+                  sx={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    mb: 0.5,
+                    backgroundColor: '#fff9c4',
+                    p: 1,
+                    borderRadius: 1,
+                  }}
+                >
+                  <CleaningIcon sx={{ fontSize: 16, color: '#ff9800', mr: 1 }} />
+                  <Box flexGrow={1}>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: '#424242',
+                        fontSize: '0.75rem',
+                        fontWeight: 'medium'
+                      }}
+                    >
+                      Limpieza en curso: {activeCleaningOrder.cleaning_type}
+                    </Typography>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        color: '#757575',
+                        fontSize: '0.7rem',
+                        display: 'block'
+                      }}
+                    >
+                      {activeCleaningOrder.area_name} • Tiempo restante: {getCleaningTimeRemaining()}
+                    </Typography>
+                  </Box>
+                </Box>
+              </>
+            )}
           </>
+        ) : activeCleaningOrder ? (
+          // Vista principal cuando solo hay orden de limpieza activa
+          <Box>
+            <Box 
+              sx={{ 
+                display: 'flex',
+                alignItems: 'center',
+                mb: 2,
+                backgroundColor: '#fff9c4',
+                p: 1,
+                borderRadius: 1,
+              }}
+            >
+              <CleaningIcon sx={{ fontSize: 20, color: '#ff9800', mr: 1 }} />
+              <Box flexGrow={1}>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    color: '#424242',
+                    fontWeight: 'medium'
+                  }}
+                >
+                  Limpieza en curso
+                </Typography>
+                
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#424242',
+                    fontSize: '0.875rem',
+                    mt: 0.5
+                  }}
+                >
+                  {activeCleaningOrder.cleaning_type} - {activeCleaningOrder.description}
+                </Typography>
+                
+                <Box mt={1} display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2" color="text.secondary">
+                    {activeCleaningOrder.area_name}
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    fontWeight="medium" 
+                    sx={{ color: '#ff9800' }}
+                  >
+                    Tiempo restante: {getCleaningTimeRemaining()}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+            
+            <Box 
+              sx={{ 
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                mt: 2,
+                px: 1
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                Operador: {activeCleaningOrder.operator_name || 'No asignado'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Duración estimada: {activeCleaningOrder.estimated_duration_minutes} min
+              </Typography>
+            </Box>
+          </Box>
         ) : (
           // Mensaje cuando no hay orden activa
           <Box display="flex" justifyContent="center" alignItems="center" height="100px">
             <Typography variant="body2" color="text.secondary">
-              No hay órdenes de producción activas
+              No hay órdenes activas
             </Typography>
           </Box>
         )}
