@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, 
   Typography, 
@@ -86,6 +86,12 @@ interface CleaningOrderList {
   orders: CleaningOrderSummary[];
 }
 
+// Interfaz para el registro de producción
+interface ProductionRecord {
+  timestamp: number;
+  total: number;
+}
+
 // Componente simplificado según diseño de referencia
 const Cremer: React.FC = () => {
   // Estados básicos
@@ -108,6 +114,11 @@ const Cremer: React.FC = () => {
   });
   const [qualityRate, setQualityRate] = useState<number>(0);
   
+  // Ref para almacenar el historial de producción del último minuto
+  const productionHistoryRef = useRef<ProductionRecord[]>([]);
+  // Ref para almacenar el id de la orden activa anterior
+  const previousOrderIdRef = useRef<number | null>(null);
+  
   // Cargar datos iniciales y configurar intervalos de actualización
   useEffect(() => {
     loadData();
@@ -117,10 +128,10 @@ const Cremer: React.FC = () => {
       loadData();
     }, 10000);
     
-    // Intervalo para actualizar el cálculo de rendimiento cada 60 segundos (1 minuto)
+    // Intervalo para actualizar el cálculo de rendimiento cada 15 segundos
     const rateUpdateInterval = setInterval(() => {
       calculateRealTimeProductionRate();
-    }, 60000);
+    }, 15000);
     
     return () => {
       clearInterval(dataInterval);
@@ -128,15 +139,47 @@ const Cremer: React.FC = () => {
     };
   }, []);
 
-  // Calcular tasa de producción en tiempo real cada vez que cambian los contadores o la orden
+  // Actualizar historial de producción cuando cambian los contadores o la orden
   useEffect(() => {
     if (activeOrder) {
+      // Verificar si cambió el ID de la orden activa
+      if (previousOrderIdRef.current !== activeOrder.id) {
+        // Resetear el historial de producción si cambió la orden
+        productionHistoryRef.current = [];
+        previousOrderIdRef.current = activeOrder.id;
+      }
+      
+      // Registrar el contador actual en el historial
+      recordProduction(counters.total);
+      
+      // Calcular tasas
       calculateRealTimeProductionRate();
       calculateQualityRate();
+    } else {
+      // Resetear cuando no hay orden activa
+      productionHistoryRef.current = [];
+      previousOrderIdRef.current = null;
     }
   }, [counters, activeOrder]);
 
-  // Calcular tasa de producción en tiempo real
+  // Registrar la producción actual en el historial
+  const recordProduction = (total: number) => {
+    const now = Date.now();
+    
+    // Añadir nuevo registro
+    productionHistoryRef.current.push({
+      timestamp: now,
+      total: total
+    });
+    
+    // Eliminar registros más antiguos de 1 minuto
+    const oneMinuteAgo = now - 60000;
+    productionHistoryRef.current = productionHistoryRef.current.filter(
+      record => record.timestamp >= oneMinuteAgo
+    );
+  };
+
+  // Calcular tasa de producción basada en el último minuto
   const calculateRealTimeProductionRate = () => {
     if (!activeOrder || !activeOrder.time.start_time) return;
 
@@ -146,50 +189,46 @@ const Cremer: React.FC = () => {
       return;
     }
 
-    // Obtener el tiempo de inicio de la orden
-    let startTimeMs;
-    
-    try {
-      // Usamos el tiempo de inicio de la orden
-      startTimeMs = new Date(activeOrder.time.start_time).getTime();
-    } catch (error) {
-      console.error('Error al parsear fecha de inicio:', error);
+    const history = productionHistoryRef.current;
+    if (history.length < 2) {
+      // No hay suficientes datos para calcular la tasa
       return;
     }
 
-    // Obtener la hora actual para un cálculo preciso en tiempo real
-    const now = new Date().getTime();
+    // Obtener datos del último minuto
+    const now = Date.now();
+    const oneMinuteAgo = now - 60000;
     
-    // Calcular el tiempo transcurrido en minutos desde el inicio hasta ahora (o hasta el fin si ya terminó)
-    const endTimeMs = activeOrder.time.end_time ? new Date(activeOrder.time.end_time).getTime() : now;
-    const totalDurationMs = endTimeMs - startTimeMs;
+    // Filtrar registros del último minuto
+    const recentRecords = history.filter(record => record.timestamp >= oneMinuteAgo);
     
-    // Para órdenes en pausa, usar el tiempo actualizado
-    let effectiveTimeMs = totalDurationMs;
-    
-    // Si hay información sobre pausas, se podría ajustar aquí
-    // En este caso, asumimos que no tenemos pausas registradas en tiempo real
-    
-    // Convertir a minutos
-    const elapsedMinutes = effectiveTimeMs / 60000;
-
-    // Calcular la tasa solo si el tiempo transcurrido es válido
-    if (elapsedMinutes > 0) {
-      // La tasa es el total de unidades dividido por el tiempo transcurrido
-      const total = activeOrder.produced.total;
-      const rate = total / elapsedMinutes;
+    if (recentRecords.length >= 2) {
+      // Obtener el registro más antiguo y más reciente del último minuto
+      const oldestRecord = recentRecords[0];
+      const latestRecord = recentRecords[recentRecords.length - 1];
       
-      // Actualizar el estado si es un número válido
-      if (!isNaN(rate) && isFinite(rate) && rate >= 0) {
-        setProductionRate(rate);
+      // Calcular la diferencia de tiempo en minutos
+      const timeDiffMinutes = (latestRecord.timestamp - oldestRecord.timestamp) / 60000;
+      
+      // Calcular la diferencia en unidades producidas
+      const unitsDiff = latestRecord.total - oldestRecord.total;
+      
+      if (timeDiffMinutes > 0) {
+        // Calcular la tasa (unidades por minuto)
+        const rate = unitsDiff / timeDiffMinutes;
         
-        // Actualizar tiempo estimado
-        if (rate > 0 && (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED')) {
-          const remainingItems = activeOrder.quantity - total;
-          const minutesRemaining = remainingItems / rate;
-          const estimatedEnd = new Date();
-          estimatedEnd.setMinutes(estimatedEnd.getMinutes() + minutesRemaining);
-          setEstimatedEndTime(estimatedEnd);
+        // Actualizar el estado si es un número válido
+        if (!isNaN(rate) && isFinite(rate) && rate >= 0) {
+          setProductionRate(rate);
+          
+          // Actualizar tiempo estimado
+          if (rate > 0 && (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED')) {
+            const remainingItems = activeOrder.quantity - latestRecord.total;
+            const minutesRemaining = remainingItems / rate;
+            const estimatedEnd = new Date();
+            estimatedEnd.setMinutes(estimatedEnd.getMinutes() + minutesRemaining);
+            setEstimatedEndTime(estimatedEnd);
+          }
         }
       }
     }
@@ -263,11 +302,14 @@ const Cremer: React.FC = () => {
         setActiveOrder(latestOrder);
         
         // Actualizar contadores con los datos de la orden
+        // Calcular el porcentaje de completado real basado en el total producido y la cantidad objetivo
+        const calculatedProgress = latestOrder.produced.total / latestOrder.quantity;
+        
         setCounters({
           countGood: latestOrder.produced.good_units,
           countBad: latestOrder.produced.defective_units,
           total: latestOrder.produced.total,
-          progress: latestOrder.produced.completion_percentage * 100 // Convertir a porcentaje
+          progress: calculatedProgress // Calculamos el porcentaje real como decimal (total producido / cantidad objetivo)
         });
         
         // Actualizar el estado de la máquina según el estado de la orden
@@ -548,18 +590,19 @@ const Cremer: React.FC = () => {
                 variant="body2" 
                 fontWeight="medium" 
                 sx={{ 
-                  color: '#f44336',
+                  color: '#4caf50',
                   fontSize: '0.8rem'
                 }}
               >
-                {typeof counters.progress === 'number' ? counters.progress.toFixed(1) : counters.progress}%
+                {/* Multiplicamos por 100 para mostrar correctamente el porcentaje */}
+                {(counters.progress * 100).toFixed(1)}%
               </Typography>
             </Box>
             
-            {/* Barra de progreso */}
+            {/* Barra de progreso - Usamos el valor decimal correcto y lo multiplicamos por 100 para el componente */}
             <LinearProgress 
               variant="determinate" 
-              value={Math.min(counters.progress, 100)} 
+              value={Math.min(counters.progress * 100, 100)} 
               sx={{ 
                 height: 5, 
                 borderRadius: 2, 
