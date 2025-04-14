@@ -29,7 +29,6 @@ import {
   Alert,
   Snackbar,
   useMediaQuery,
-  Theme,
   useTheme,
   SelectChangeEvent
 } from '@mui/material';
@@ -272,7 +271,6 @@ const reportTypes: ReportType[] = [
   // Obtener el tema para consultar breakpoints
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
   // Estados para notificaciones
   const [notifications, setNotifications] = useState<Notification[]>([]);
