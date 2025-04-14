@@ -123,15 +123,16 @@ const Cremer: React.FC = () => {
   useEffect(() => {
     loadData();
     
-    // Intervalo para recargar datos generales cada 10 segundos
+    // Actualizar datos cada 2 segundos en lugar de 10
     const dataInterval = setInterval(() => {
       loadData();
-    }, 10000);
+    }, 2000);
     
-    // Intervalo para actualizar el cálculo de rendimiento cada 15 segundos
+    // Actualizar cálculos de rendimiento cada 5 segundos en lugar de 15
     const rateUpdateInterval = setInterval(() => {
       calculateRealTimeProductionRate();
-    }, 15000);
+      calculateOverallProductionRate();
+    }, 5000);
     
     return () => {
       clearInterval(dataInterval);
@@ -166,63 +167,53 @@ const Cremer: React.FC = () => {
   const recordProduction = (total: number) => {
     const now = Date.now();
     
-    // Añadir nuevo registro
-    productionHistoryRef.current.push({
-      timestamp: now,
-      total: total
-    });
-    
-    // Eliminar registros más antiguos de 1 minuto
-    const oneMinuteAgo = now - 60000;
-    productionHistoryRef.current = productionHistoryRef.current.filter(
-      record => record.timestamp >= oneMinuteAgo
-    );
+    // Añadir nuevo registro solo si el total ha cambiado
+    const lastRecord = productionHistoryRef.current[productionHistoryRef.current.length - 1];
+    if (!lastRecord || lastRecord.total !== total) {
+      productionHistoryRef.current.push({
+        timestamp: now,
+        total: total
+      });
+    }
   };
 
   // Calcular tasa de producción basada en el último minuto
   const calculateRealTimeProductionRate = () => {
     if (!activeOrder || !activeOrder.time.start_time) return;
 
-    // Verificamos que la orden esté activa (no completada o cancelada)
     if (activeOrder.status === 'FINISHED' || activeOrder.status === 'CANCELLED') {
-      setProductionRate(0);
+      setProductionRates(prev => ({ ...prev, realTime: 0 }));
       return;
     }
 
     const history = productionHistoryRef.current;
-    if (history.length < 2) {
-      // No hay suficientes datos para calcular la tasa
-      return;
-    }
+    if (history.length < 2) return;
 
-    // Obtener datos del último minuto
     const now = Date.now();
     const oneMinuteAgo = now - 60000;
     
-    // Filtrar registros del último minuto
+    // Obtener registros del último minuto
     const recentRecords = history.filter(record => record.timestamp >= oneMinuteAgo);
     
     if (recentRecords.length >= 2) {
-      // Obtener el registro más antiguo y más reciente del último minuto
       const oldestRecord = recentRecords[0];
       const latestRecord = recentRecords[recentRecords.length - 1];
       
-      // Calcular la diferencia de tiempo en minutos
+      // Calcular diferencia de tiempo en minutos
       const timeDiffMinutes = (latestRecord.timestamp - oldestRecord.timestamp) / 60000;
       
-      // Calcular la diferencia en unidades producidas
-      const unitsDiff = latestRecord.total - oldestRecord.total;
+      // Calcular diferencia en unidades producidas (solo unidades buenas)
+      const goodUnitsDiff = (latestRecord.total - oldestRecord.total) * (qualityRate / 100);
       
       if (timeDiffMinutes > 0) {
-        // Calcular la tasa (unidades por minuto)
-        const rate = unitsDiff / timeDiffMinutes;
+        // Calcular tasa (unidades buenas por minuto)
+        const rate = goodUnitsDiff / timeDiffMinutes;
         
-        // Actualizar el estado si es un número válido
         if (!isNaN(rate) && isFinite(rate) && rate >= 0) {
-          setProductionRate(rate);
+          setProductionRates(prev => ({ ...prev, realTime: rate }));
           
           // Actualizar tiempo estimado
-          if (rate > 0 && (activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED')) {
+          if (rate > 0 && ['STARTED', 'IN_PROGRESS', 'RESUMED'].includes(activeOrder.status)) {
             const remainingItems = activeOrder.quantity - latestRecord.total;
             const minutesRemaining = remainingItems / rate;
             const estimatedEnd = new Date();
@@ -261,12 +252,46 @@ const Cremer: React.FC = () => {
     }
   };
 
+
+  const [productionRates, setProductionRates] = useState({
+    realTime: 0,  // Tasa de producción en el último minuto
+    overall: 0    // Tasa de producción promedio durante toda la producción
+  });
+  const calculateOverallProductionRate = () => {
+    if (!activeOrder || !activeOrder.time.start_time) return;
+
+    if (activeOrder.status === 'FINISHED' || activeOrder.status === 'CANCELLED') {
+      setProductionRates(prev => ({ ...prev, overall: 0 }));
+      return;
+    }
+
+    const history = productionHistoryRef.current;
+    if (history.length < 2) return;
+
+    // Tomamos el primer y último registro del historial
+    const firstRecord = history[0];
+    const lastRecord = history[history.length - 1];
+    
+    // Calculamos el tiempo transcurrido en minutos
+    const timeDiffMinutes = (lastRecord.timestamp - firstRecord.timestamp) / 60000;
+    
+    if (timeDiffMinutes > 0) {
+      // Calculamos la diferencia total de unidades buenas
+      const totalUnitsDiff = lastRecord.total - firstRecord.total;
+      
+      // Calculamos la tasa promedio (unidades por minuto)
+      const rate = totalUnitsDiff / timeDiffMinutes;
+      
+      if (!isNaN(rate) && isFinite(rate) && rate >= 0) {
+        setProductionRates(prev => ({ ...prev, overall: rate }));
+      }
+    }
+  };
   // Cargar la última orden iniciada no completada
   const loadLatestActiveOrder = async () => {
     try {
       console.log("Cargando órdenes de fabricación...");
       
-      // Obtener todas las órdenes de fabricación
       const response = await fetch(`${API_BASE_URL}/manufacturing`);
       
       if (!response.ok) {
@@ -277,12 +302,11 @@ const Cremer: React.FC = () => {
       console.log("Datos recibidos:", data);
       
       // Filtrar para obtener solo órdenes no completadas
-      // Ahora incluimos STARTED, IN_PROGRESS y PAUSED
       const activeOrders = data.orders.filter(order => 
         order.status === 'STARTED' || 
         order.status === 'IN_PROGRESS' || 
         order.status === 'PAUSED' || 
-        order.status === 'RESUMED' // Si se agrega un nuevo estado, incluirlo aquí
+        order.status === 'RESUMED'
       );
       
       console.log("Órdenes activas encontradas:", activeOrders.length);
@@ -292,27 +316,24 @@ const Cremer: React.FC = () => {
         activeOrders.sort((a, b) => {
           const timeA = new Date(a.time.start_time).getTime();
           const timeB = new Date(b.time.start_time).getTime();
-          return timeB - timeA; // Orden descendente
+          return timeB - timeA;
         });
         
-        // Tomar la primera (más reciente)
         const latestOrder = activeOrders[0];
         console.log("Orden activa seleccionada:", latestOrder);
         
         setActiveOrder(latestOrder);
         
-        // Actualizar contadores con los datos de la orden
-        // Calcular el porcentaje de completado real basado en el total producido y la cantidad objetivo
         const calculatedProgress = latestOrder.produced.total / latestOrder.quantity;
         
         setCounters({
           countGood: latestOrder.produced.good_units,
           countBad: latestOrder.produced.defective_units,
           total: latestOrder.produced.total,
-          progress: calculatedProgress // Calculamos el porcentaje real como decimal (total producido / cantidad objetivo)
+          progress: calculatedProgress
         });
         
-        // Actualizar el estado de la máquina según el estado de la orden
+        // Actualizar estado de máquina solo basado en la orden de producción
         updateMachineStatus(latestOrder.status);
       } else {
         // No hay órdenes activas
@@ -323,19 +344,14 @@ const Cremer: React.FC = () => {
         setProductionRate(0);
         setEstimatedEndTime(null);
         
-        // Solo actualizamos el semáforo a rojo si tampoco hay órdenes de limpieza activas
-        if (!activeCleaningOrder) {
-          setMachineStatus({ verde: false, amarillo: false, rojo: true });
-        }
+        // Siempre rojo cuando no hay orden de producción activa
+        setMachineStatus({ verde: false, amarillo: false, rojo: true });
       }
     } catch (error) {
       console.error('Error al cargar orden activa:', error);
       setActiveOrder(null);
-      
-      // Solo actualizamos el semáforo a rojo si tampoco hay órdenes de limpieza activas
-      if (!activeCleaningOrder) {
-        setMachineStatus({ verde: false, amarillo: false, rojo: true });
-      }
+      // Error = semáforo en rojo
+      setMachineStatus({ verde: false, amarillo: false, rojo: true });
     }
   };
 
@@ -344,7 +360,6 @@ const Cremer: React.FC = () => {
     try {
       console.log("Cargando órdenes de limpieza...");
       
-      // Obtener todas las órdenes de limpieza
       const response = await fetch(`${API_BASE_URL}/cleaning`);
       
       if (!response.ok) {
@@ -354,7 +369,6 @@ const Cremer: React.FC = () => {
       const data: CleaningOrderList = await response.json();
       console.log("Datos de limpieza recibidos:", data);
       
-      // Filtrar para obtener solo órdenes de limpieza activas
       const activeCleaningOrders = data.orders.filter(order => 
         order.status === 'STARTED' || 
         order.status === 'IN_PROGRESS' || 
@@ -364,53 +378,36 @@ const Cremer: React.FC = () => {
       console.log("Órdenes de limpieza activas encontradas:", activeCleaningOrders.length);
       
       if (activeCleaningOrders.length > 0) {
-        // Ordenar por start_time (la más reciente primero)
         activeCleaningOrders.sort((a, b) => {
           const timeA = new Date(a.time.start_time).getTime();
           const timeB = new Date(b.time.start_time).getTime();
-          return timeB - timeA; // Orden descendente
+          return timeB - timeA;
         });
         
-        // Tomar la primera (más reciente)
         const latestCleaningOrder = activeCleaningOrders[0];
         console.log("Orden de limpieza activa seleccionada:", latestCleaningOrder);
         
         setActiveCleaningOrder(latestCleaningOrder);
-        
-        // Si no hay una orden de fabricación activa, la limpieza determina el estado del semáforo
-        if (!activeOrder) {
-          updateMachineStatus('CLEANING');
-        }
+        // Ya no actualizamos el estado de la máquina aquí
       } else {
-        // No hay órdenes de limpieza activas
         console.log("No se encontraron órdenes de limpieza activas");
         setActiveCleaningOrder(null);
-        
-        // Si no hay orden de producción activa, el semáforo debe estar en rojo
-        if (!activeOrder) {
-          setMachineStatus({ verde: false, amarillo: false, rojo: true });
-        }
       }
     } catch (error) {
       console.error('Error al cargar orden de limpieza activa:', error);
       setActiveCleaningOrder(null);
-      
-      // Si no hay orden de producción activa, el semáforo debe estar en rojo
-      if (!activeOrder) {
-        setMachineStatus({ verde: false, amarillo: false, rojo: true });
-      }
     }
   };
 
   // Actualizar estado de la máquina según el estado de la orden
   const updateMachineStatus = (status: string) => {
+    // Solo consideramos estados de producción
     if (status === 'STARTED' || status === 'IN_PROGRESS' || status === 'RESUMED') {
       setMachineStatus({ verde: true, amarillo: false, rojo: false });
     } else if (status === 'PAUSED') {
       setMachineStatus({ verde: false, amarillo: true, rojo: false });
-    } else if (status === 'CLEANING') {
-      setMachineStatus({ verde: false, amarillo: true, rojo: false });
     } else {
+      // Cualquier otro estado o sin orden activa
       setMachineStatus({ verde: false, amarillo: false, rojo: true });
     }
   };
@@ -657,26 +654,41 @@ const Cremer: React.FC = () => {
                 alignItems: 'center'
               }}
             >
-              {/* Velocidad */}
-              <Box display="flex" alignItems="center">
-                <SpeedIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
-                <Typography variant="caption" color="text.secondary">
-                  Vel.
-                </Typography>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    ml: 0.5, 
-                    color: '#212121',
-                    fontWeight: 'medium' 
-                  }}
-                  
-                  // Forzar actualización del componente cada segundo usando Date.now
-                  key={(activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED') ? Date.now() : 'static-rate'}
-                >
-                  {productionRate > 0 ? `${Math.round(productionRate)} bpm` : '—'}
-                </Typography>
-              </Box>
+           {/* Velocidad en tiempo real */}
+<Box display="flex" alignItems="center">
+  <SpeedIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
+  <Typography variant="caption" color="text.secondary">
+    Vel. 1m
+  </Typography>
+  <Typography 
+    variant="body2" 
+    sx={{ 
+      ml: 0.5, 
+      color: '#212121',
+      fontWeight: 'medium' 
+    }}
+    // Forzar actualización más frecuente
+    key={`rate-${Date.now()}`}
+  >
+    {productionRates.realTime > 0 ? `${Math.round(productionRates.realTime)} bpm` : '—'}
+  </Typography>
+</Box>{/* Velocidad media */}
+<Box display="flex" alignItems="center">
+  <SpeedIcon sx={{ fontSize: 14, color: '#666666', mr: 0.5 }} />
+  <Typography variant="caption" color="text.secondary">
+    Vel. Total
+  </Typography>
+  <Typography 
+    variant="body2" 
+    sx={{ 
+      ml: 0.5, 
+      color: '#212121',
+      fontWeight: 'medium' 
+    }}
+  >
+    {productionRates.overall > 0 ? `${Math.round(productionRates.overall)} bpm` : '—'}
+  </Typography>
+</Box>
 
               {/* Calidad */}
               <Box display="flex" alignItems="center">

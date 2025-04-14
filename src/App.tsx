@@ -7,7 +7,6 @@ import Sidebar from './components/Sidebar';
 import Sala27 from './pages/Sala27';
 import Softgel from './pages/Softgel';
 import Produccion from './pages/Produccion';
-import Ponderales from './pages/Ponderales';
 import Osmosis from './pages/Osmosis';
 import './styles/App.scss';
 import HerramientasRps from './pages/HerramientaRps';
@@ -285,7 +284,6 @@ const App: React.FC = () => {
               <Route path="/sala27" element={<Sala27 />} />
               <Route path="/softgel" element={<Softgel />} />
               <Route path="/produccion" element={<Produccion />} />
-              <Route path="/ponderales" element={<Ponderales />} />
               <Route path="/osmosis" element={<Osmosis />} />
               <Route path="/herramientas" element={<HerramientasRps />} />
               <Route path="/rnpconnect" element={<Rnpconnect />} />
