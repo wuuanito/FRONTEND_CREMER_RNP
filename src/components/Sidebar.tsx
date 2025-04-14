@@ -1,7 +1,7 @@
 // src/components/Sidebar.tsx
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Box, Building2, BarChart3, Menu,Droplets, Airplay, LogIn    } from 'lucide-react';
+import {  Building2, BarChart3, Menu,Droplets,     } from 'lucide-react';
 import { SidebarProps } from '../types';
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggle }) => {
