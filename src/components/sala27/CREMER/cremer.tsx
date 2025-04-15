@@ -658,7 +658,7 @@ const Cremer: React.FC = () => {
 <Box display="flex" alignItems="center">
   <SpeedIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
   <Typography variant="caption" color="text.secondary">
-    Vel. 1m
+    Vel. Actual
   </Typography>
   <Typography 
     variant="body2" 
@@ -676,7 +676,7 @@ const Cremer: React.FC = () => {
 <Box display="flex" alignItems="center">
   <SpeedIcon sx={{ fontSize: 14, color: '#666666', mr: 0.5 }} />
   <Typography variant="caption" color="text.secondary">
-    Vel. Total
+    Vel. Media
   </Typography>
   <Typography 
     variant="body2" 

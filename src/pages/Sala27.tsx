@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Box, Grid, Typography, Modal, IconButton } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
-import CremerDetails from "../components/sala27/CREMER/CremerDetails";
+import CremerDetails from "../components/sala27/CREMER/CremerDetails"
 import Cremer from "../components/sala27/CREMER/cremer";
 
 // Updated machine names in the correct order
