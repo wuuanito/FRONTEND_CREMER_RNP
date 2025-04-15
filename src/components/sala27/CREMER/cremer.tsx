@@ -153,15 +153,16 @@ const Cremer: React.FC = () => {
       // Registrar el contador actual en el historial
       recordProduction(counters.total);
       
-      // Calcular tasas
+      // Calcular tasas inmediatamente cuando hay cambios
       calculateRealTimeProductionRate();
+      calculateOverallProductionRate();
       calculateQualityRate();
     } else {
       // Resetear cuando no hay orden activa
       productionHistoryRef.current = [];
       previousOrderIdRef.current = null;
     }
-  }, [counters, activeOrder]);
+  }, [counters, activeOrder, qualityRate]);
 
   // Registrar la producción actual en el historial
   const recordProduction = (total: number) => {
@@ -174,25 +175,36 @@ const Cremer: React.FC = () => {
         timestamp: now,
         total: total
       });
+      
+      // Mantener solo los registros del último minuto
+      const oneMinuteAgo = now - 60000;
+      productionHistoryRef.current = productionHistoryRef.current.filter(
+        record => record.timestamp >= oneMinuteAgo
+      );
     }
   };
 
   // Calcular tasa de producción basada en el último minuto
   const calculateRealTimeProductionRate = () => {
     if (!activeOrder || !activeOrder.time.start_time) return;
-
+  
     if (activeOrder.status === 'FINISHED' || activeOrder.status === 'CANCELLED') {
       setProductionRates(prev => ({ ...prev, realTime: 0 }));
       return;
     }
 
+    if (activeOrder.status === 'PAUSED') {
+      setProductionRates(prev => ({ ...prev, realTime: -1 }));
+      return;
+    }
+  
     const history = productionHistoryRef.current;
     if (history.length < 2) return;
-
+  
     const now = Date.now();
     const oneMinuteAgo = now - 60000;
     
-    // Obtener registros del último minuto
+    // Filtrar registros del último minuto
     const recentRecords = history.filter(record => record.timestamp >= oneMinuteAgo);
     
     if (recentRecords.length >= 2) {
@@ -202,25 +214,77 @@ const Cremer: React.FC = () => {
       // Calcular diferencia de tiempo en minutos
       const timeDiffMinutes = (latestRecord.timestamp - oldestRecord.timestamp) / 60000;
       
-      // Calcular diferencia en unidades producidas (solo unidades buenas)
-      const goodUnitsDiff = (latestRecord.total - oldestRecord.total) * (qualityRate / 100);
+      // Calcular diferencia en unidades buenas
+      const goodUnitsDiff = counters.countGood - (oldestRecord.total * (qualityRate / 100));
       
       if (timeDiffMinutes > 0) {
-        // Calcular tasa (unidades buenas por minuto)
-        const rate = goodUnitsDiff / timeDiffMinutes;
+        // Calcular tasa de unidades buenas por minuto
+        const goodRate = goodUnitsDiff / timeDiffMinutes;
         
-        if (!isNaN(rate) && isFinite(rate) && rate >= 0) {
-          setProductionRates(prev => ({ ...prev, realTime: rate }));
+        if (!isNaN(goodRate) && isFinite(goodRate) && goodRate >= 0) {
+          setProductionRates(prev => ({ 
+            ...prev, 
+            realTime: Math.round(goodRate)
+          }));
           
           // Actualizar tiempo estimado
-          if (rate > 0 && ['STARTED', 'IN_PROGRESS', 'RESUMED'].includes(activeOrder.status)) {
+          if (goodRate > 0 && ['STARTED', 'IN_PROGRESS', 'RESUMED'].includes(activeOrder.status)) {
             const remainingItems = activeOrder.quantity - latestRecord.total;
-            const minutesRemaining = remainingItems / rate;
+            const minutesRemaining = remainingItems / goodRate;
             const estimatedEnd = new Date();
             estimatedEnd.setMinutes(estimatedEnd.getMinutes() + minutesRemaining);
             setEstimatedEndTime(estimatedEnd);
+            setProductionRate(goodRate); // Actualizar el estado productionRate
           }
         }
+      }
+    }
+  };
+
+  // Calcular tasa de producción media desde el inicio
+  const calculateOverallProductionRate = () => {
+    if (!activeOrder || !activeOrder.time.start_time) return;
+  
+    if (activeOrder.status === 'FINISHED' || activeOrder.status === 'CANCELLED') {
+      setProductionRates(prev => ({ ...prev, overall: { total: 0, good: 0 } }));
+      return;
+    }
+
+    if (activeOrder.status === 'PAUSED') {
+      setProductionRates(prev => ({ ...prev, overall: { total: -1, good: -1 } }));
+      return;
+    }
+  
+    const history = productionHistoryRef.current;
+    if (history.length < 2) return;
+  
+    // Calcular desde el inicio de la orden de producción
+    const startTime = new Date(activeOrder.time.start_time).getTime();
+    const now = Date.now();
+    
+    // Filtrar registros desde el inicio de la orden
+    const orderRecords = history.filter(record => record.timestamp >= startTime);
+    if (orderRecords.length < 2) return;
+    
+    const firstRecord = orderRecords[0];
+    const lastRecord = orderRecords[orderRecords.length - 1];
+    
+    // Calcular tiempo transcurrido en minutos
+    const timeDiffMinutes = (now - startTime) / 60000;
+    
+    if (timeDiffMinutes > 0) {
+      // Calcular tasas promedio
+      const totalRate = lastRecord.total / timeDiffMinutes;
+      const goodRate = (lastRecord.total * (qualityRate / 100)) / timeDiffMinutes;
+      
+      if (!isNaN(totalRate) && isFinite(totalRate) && totalRate >= 0) {
+        setProductionRates(prev => ({ 
+          ...prev, 
+          overall: {
+            total: Math.round(totalRate),
+            good: Math.round(goodRate)
+          }
+        }));
       }
     }
   };
@@ -254,39 +318,13 @@ const Cremer: React.FC = () => {
 
 
   const [productionRates, setProductionRates] = useState({
-    realTime: 0,  // Tasa de producción en el último minuto
-    overall: 0    // Tasa de producción promedio durante toda la producción
-  });
-  const calculateOverallProductionRate = () => {
-    if (!activeOrder || !activeOrder.time.start_time) return;
-
-    if (activeOrder.status === 'FINISHED' || activeOrder.status === 'CANCELLED') {
-      setProductionRates(prev => ({ ...prev, overall: 0 }));
-      return;
-    }
-
-    const history = productionHistoryRef.current;
-    if (history.length < 2) return;
-
-    // Tomamos el primer y último registro del historial
-    const firstRecord = history[0];
-    const lastRecord = history[history.length - 1];
-    
-    // Calculamos el tiempo transcurrido en minutos
-    const timeDiffMinutes = (lastRecord.timestamp - firstRecord.timestamp) / 60000;
-    
-    if (timeDiffMinutes > 0) {
-      // Calculamos la diferencia total de unidades buenas
-      const totalUnitsDiff = lastRecord.total - firstRecord.total;
-      
-      // Calculamos la tasa promedio (unidades por minuto)
-      const rate = totalUnitsDiff / timeDiffMinutes;
-      
-      if (!isNaN(rate) && isFinite(rate) && rate >= 0) {
-        setProductionRates(prev => ({ ...prev, overall: rate }));
+      realTime: 0,  // Tasa de producción en el último minuto
+      overall: {
+        total: 0,   // Total production rate
+        good: 0     // Good production rate
       }
-    }
-  };
+    });
+
   // Cargar la última orden iniciada no completada
   const loadLatestActiveOrder = async () => {
     try {
@@ -655,7 +693,7 @@ const Cremer: React.FC = () => {
               }}
             >
            {/* Velocidad en tiempo real */}
-<Box display="flex" alignItems="center">
+           <Box display="flex" alignItems="center">
   <SpeedIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
   <Typography variant="caption" color="text.secondary">
     Vel. Actual
@@ -667,12 +705,16 @@ const Cremer: React.FC = () => {
       color: '#212121',
       fontWeight: 'medium' 
     }}
-    // Forzar actualización más frecuente
-    key={`rate-${Date.now()}`}
   >
-    {productionRates.realTime > 0 ? `${Math.round(productionRates.realTime)} bpm` : '—'}
+    {activeOrder?.status === 'PAUSED' 
+      ? 'Pausada' 
+      : productionRates.realTime > 0 
+        ? `${productionRates.realTime} bpm` 
+        : '—'}
   </Typography>
-</Box>{/* Velocidad media */}
+</Box>
+
+{/* Velocidad media */}
 <Box display="flex" alignItems="center">
   <SpeedIcon sx={{ fontSize: 14, color: '#666666', mr: 0.5 }} />
   <Typography variant="caption" color="text.secondary">
@@ -686,7 +728,11 @@ const Cremer: React.FC = () => {
       fontWeight: 'medium' 
     }}
   >
-    {productionRates.overall > 0 ? `${Math.round(productionRates.overall)} bpm` : '—'}
+    {activeOrder?.status === 'PAUSED' 
+      ? 'Pausada' 
+      : productionRates.overall && productionRates.overall.good > 0 
+        ? `${productionRates.overall.good} bpm` 
+        : '—'}
   </Typography>
 </Box>
 

@@ -28,17 +28,32 @@
             </div>
         </header>
         
-        <main>
-            <div class="main-content">
+        <main class="main-content">
+            <div class="columns-container">
+                <!-- Columna de Fabricación -->
                 <section id="manufacturingSection" class="main-section">
-                    <h2>Órdenes de Fabricación</h2>
+                    <div class="section-header">
+                        <h2>Órdenes de Fabricación</h2>
+                        <div class="pagination-controls">
+                            <select id="manufacturingPageSize" class="page-size-select">
+                                <option value="5">5 por página</option>
+                                <option value="10" selected>10 por página</option>
+                                <option value="20">20 por página</option>
+                                <option value="50">50 por página</option>
+                            </select>
+                            <div class="pagination-buttons">
+                                <button id="prevManufacturingPage" class="pagination-btn" disabled>&lt;</button>
+                                <span id="manufacturingPageInfo">Página 1</span>
+                                <button id="nextManufacturingPage" class="pagination-btn">&gt;</button>
+                            </div>
+                        </div>
+                    </div>
                     <section id="ordersTable" class="orders-table" aria-label="Tabla de Órdenes de Fabricación">
                         <div class="table-header">
                             <div class="header-item">Código Orden</div>
                             <div class="header-item">Código Artículo</div>
                             <div class="header-item">Descripción</div>
                             <div class="header-item">Cantidad</div>
-                            <div class="header-item">Tasa Producción</div>
                             <div class="header-item">Estado</div>
                             <div class="header-item">Acciones</div>
                         </div>
@@ -48,13 +63,36 @@
                     </section>
                 </section>
 
-                <section id="cleaningSection" class="side-section">
-                    <div class="cleaning-header">
-                        <h2>Limpieza</h2>
+                <!-- Columna de Limpieza -->
+                <section id="cleaningSection" class="main-section">
+                    <div class="section-header">
+                        <h2>Órdenes de Limpieza</h2>
+                        <div class="pagination-controls">
+                            <select id="cleaningPageSize" class="page-size-select">
+                                <option value="5">5 por página</option>
+                                <option value="10" selected>10 por página</option>
+                                <option value="20">20 por página</option>
+                                <option value="50">50 por página</option>
+                            </select>
+                            <div class="pagination-buttons">
+                                <button id="prevCleaningPage" class="pagination-btn" disabled>&lt;</button>
+                                <span id="cleaningPageInfo">Página 1</span>
+                                <button id="nextCleaningPage" class="pagination-btn">&gt;</button>
+                            </div>
+                        </div>
                     </div>
-                    <div id="cleaningOrdersContainer" class="cleaning-orders-container">
-                        <!-- Cleaning orders will be dynamically inserted here -->
-                    </div>
+                    <section id="cleaningTable" class="orders-table" aria-label="Tabla de Órdenes de Limpieza">
+                        <div class="table-header">
+                            <div class="header-item">Código Orden</div>
+                            <div class="header-item">Área</div>
+                            <div class="header-item">Descripción</div>
+                            <div class="header-item">Estado</div>
+                            <div class="header-item">Acciones</div>
+                        </div>
+                        <div id="cleaningOrdersContainer" class="orders-container">
+                            <!-- Cleaning orders will be dynamically inserted here -->
+                        </div>
+                    </section>
                 </section>
             </div>
 
