@@ -28,32 +28,17 @@
             </div>
         </header>
         
-        <main class="main-content">
-            <div class="columns-container">
-                <!-- Columna de Fabricación -->
+        <main>
+            <div class="main-content">
                 <section id="manufacturingSection" class="main-section">
-                    <div class="section-header">
-                        <h2>Órdenes de Fabricación</h2>
-                        <div class="pagination-controls">
-                            <select id="manufacturingPageSize" class="page-size-select">
-                                <option value="5">5 por página</option>
-                                <option value="10" selected>10 por página</option>
-                                <option value="20">20 por página</option>
-                                <option value="50">50 por página</option>
-                            </select>
-                            <div class="pagination-buttons">
-                                <button id="prevManufacturingPage" class="pagination-btn" disabled>&lt;</button>
-                                <span id="manufacturingPageInfo">Página 1</span>
-                                <button id="nextManufacturingPage" class="pagination-btn">&gt;</button>
-                            </div>
-                        </div>
-                    </div>
+                    <h2>Órdenes de Fabricación</h2>
                     <section id="ordersTable" class="orders-table" aria-label="Tabla de Órdenes de Fabricación">
                         <div class="table-header">
                             <div class="header-item">Código Orden</div>
                             <div class="header-item">Código Artículo</div>
                             <div class="header-item">Descripción</div>
                             <div class="header-item">Cantidad</div>
+                            <div class="header-item">Tasa Producción</div>
                             <div class="header-item">Estado</div>
                             <div class="header-item">Acciones</div>
                         </div>
@@ -63,36 +48,13 @@
                     </section>
                 </section>
 
-                <!-- Columna de Limpieza -->
-                <section id="cleaningSection" class="main-section">
-                    <div class="section-header">
-                        <h2>Órdenes de Limpieza</h2>
-                        <div class="pagination-controls">
-                            <select id="cleaningPageSize" class="page-size-select">
-                                <option value="5">5 por página</option>
-                                <option value="10" selected>10 por página</option>
-                                <option value="20">20 por página</option>
-                                <option value="50">50 por página</option>
-                            </select>
-                            <div class="pagination-buttons">
-                                <button id="prevCleaningPage" class="pagination-btn" disabled>&lt;</button>
-                                <span id="cleaningPageInfo">Página 1</span>
-                                <button id="nextCleaningPage" class="pagination-btn">&gt;</button>
-                            </div>
-                        </div>
+                <section id="cleaningSection" class="side-section">
+                    <div class="cleaning-header">
+                        <h2>Limpieza</h2>
                     </div>
-                    <section id="cleaningTable" class="orders-table" aria-label="Tabla de Órdenes de Limpieza">
-                        <div class="table-header">
-                            <div class="header-item">Código Orden</div>
-                            <div class="header-item">Área</div>
-                            <div class="header-item">Descripción</div>
-                            <div class="header-item">Estado</div>
-                            <div class="header-item">Acciones</div>
-                        </div>
-                        <div id="cleaningOrdersContainer" class="orders-container">
-                            <!-- Cleaning orders will be dynamically inserted here -->
-                        </div>
-                    </section>
+                    <div id="cleaningOrdersContainer" class="cleaning-orders-container">
+                        <!-- Cleaning orders will be dynamically inserted here -->
+                    </div>
                 </section>
             </div>
 
@@ -155,33 +117,41 @@
         </div>
     </div>
 
-    <!-- Modal for Pause Reason -->
-    <div id="pauseReasonModal" class="modal" role="dialog" aria-labelledby="pauseReasonTitle">
-        <div class="modal-content">
-            <button class="close-modal" aria-label="Cerrar">&times;</button>
-            <h2 id="pauseReasonTitle">Razón de Pausa</h2>
-            <form id="pauseReasonForm">
-                <div class="form-group">
-                    <label for="pauseReasonSelect">Seleccione Razón de Pausa</label>
-                    <select id="pauseReasonSelect" name="pause_reason_id" required>
-                        <option value="">Seleccione una razón</option>
-                        <option value="1">Falta de Materia Prima</option>
-                        <option value="2">Problema de Maquinaria</option>
-                        <option value="3">Mantenimiento</option>
-                        <option value="4">Otra Razón</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="pauseComments">Comentarios Adicionales</label>
-                    <textarea id="pauseComments" name="comments" 
-                              placeholder="Describa la razón de la pausa" maxlength="500"></textarea>
-                </div>
-                
-                <button type="submit" class="submit-btn">Pausar Orden</button>
-            </form>
-        </div>
+<!-- Modal for Pause Reason -->
+<div id="pauseReasonModal" class="modal" role="dialog" aria-labelledby="pauseReasonTitle">
+    <div class="modal-content">
+        <button class="close-modal" aria-label="Cerrar">&times;</button>
+        <h2 id="pauseReasonTitle">Razón de Pausa</h2>
+        <form id="pauseReasonForm">
+            <div class="form-group">
+                <label for="pauseReasonSelect">Seleccione Razón de Pausa</label>
+                <select id="pauseReasonSelect" name="pause_reason_id">
+                    <option value="">Seleccione una razón</option>
+                    <option value="13">Preparación Arranque</option>
+                    <option value="14">Verificación Calidad</option>
+                    <option value="15">Falta de Material</option>
+                    <option value="16">Incidencia Máquina: Posicionadora</option>
+                    <option value="17">Incidencia Máquina: Contadora</option>
+                    <option value="18">Incidencia Máquina: Taponadora</option>
+                    <option value="19">Incidencia Máquina: Etiquetadora</option>
+                    <option value="20">Incidencia Máquina: Controladora de Peso</option>
+                    <option value="21">Incidencia Máquina: Repercap</option>
+                    <option value="22">Incidencia Máquina: Otros</option>
+                    <option value="23">Mantenimiento</option>
+                   
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="pauseComments">Comentarios Adicionales</label>
+                <textarea id="pauseComments" name="comments" 
+                          placeholder="Describa la razón de la pausa" maxlength="500"></textarea>
+            </div>
+            
+            <button type="submit" class="submit-btn">Pausar Orden</button>
+        </form>
     </div>
+</div>
 
     <!-- Modal for Creating Cleaning Order -->
     <div id="createCleaningModal" class="modal" role="dialog" aria-labelledby="createCleaningTitle">
@@ -198,8 +168,13 @@
                 
                 <div class="form-group">
                     <label for="cleaningType">Tipo de Limpieza</label>
-                    <select id="cleaningType" name="cleaning_type" required disabled>
-                        <option value="STANDARD" selected>Estándar</option>
+                    <select id="cleaningType" name="cleaning_type" required>
+                        <option value="NORMAL">Normal</option>
+                        <option value="ALERGENO">Alérgeno</option>
+                        <option value="CURCUMA">Cúrcuma</option>
+                        <option value="COMPRIMIDOS">Comprimidos</option>
+                        <option value="LIMPIEZA_CAMBIO_FORMATO">Limpieza + Cambio de Formato Tapa</option>
+                        <option value="OTROS">Otros</option>
                     </select>
                 </div>
                 

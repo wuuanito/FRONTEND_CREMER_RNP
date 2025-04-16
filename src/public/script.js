@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     const ordersContainer = document.getElementById('ordersContainer');
-    const cleaningOrdersContainer = document.getElementById('cleaningOrdersContainer');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const errorMessage = document.getElementById('errorMessage');
 
@@ -14,30 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Current order ID for pause/resume/start/finish actions
     let currentOrderId = null;
-
-    // Pagination elements
-    const manufacturingPageSize = document.getElementById('manufacturingPageSize');
-    const prevManufacturingPage = document.getElementById('prevManufacturingPage');
-    const nextManufacturingPage = document.getElementById('nextManufacturingPage');
-    const manufacturingPageInfo = document.getElementById('manufacturingPageInfo');
-
-    const cleaningPageSize = document.getElementById('cleaningPageSize');
-    const prevCleaningPage = document.getElementById('prevCleaningPage');
-    const nextCleaningPage = document.getElementById('nextCleaningPage');
-    const cleaningPageInfo = document.getElementById('cleaningPageInfo');
-
-    // Pagination state
-    let manufacturingState = {
-        currentPage: 1,
-        pageSize: 10,
-        totalItems: 0
-    };
-
-    let cleaningState = {
-        currentPage: 1,
-        pageSize: 10,
-        totalItems: 0
-    };
 
     // Modal control functions
     function openModal(modal) {
@@ -113,57 +88,58 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Handle pause reason form submission
-    pauseReasonForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        if (!currentOrderId) {
-            alert('Error: No se ha seleccionado una orden');
-            return;
-        }
+   // Handle pause reason form submission
+pauseReasonForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    if (!currentOrderId) {
+        alert('Error: No se ha seleccionado una orden');
+        return;
+    }
 
-        // Prepare pause data
-        const formData = {
-            pause_reason_id: document.getElementById('pauseReasonSelect').value,
-            comments: document.getElementById('pauseComments').value
-        };
+    // Prepare pause data
+    const formData = {
+        pause_reason_id: document.getElementById('pauseReasonSelect').value || null,
+        comments: document.getElementById('pauseComments').value
+    };
 
-        try {
-            // Send POST request to pause order
-            const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/${currentOrderId}/pause`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData)
+    try {
+        // Send POST request to pause order
+        const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/${currentOrderId}/pause`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+        });
+
+        // Handle response
+        if (response.ok) {
+            // Close modal
+            closeModal(pauseReasonModal);
+            
+            // Refresh orders list
+            fetchManufacturingOrders();
+            
+            // Reset form
+            pauseReasonForm.reset();
+            
+            // Show success message
+            alert('Orden pausada exitosamente');
+        } else {
+            const errorData = await response.text();
+            console.error('Pause Order Error:', {
+                status: response.status,
+                statusText: response.statusText,
+                errorBody: errorData
             });
-
-            // Handle response
-            if (response.ok) {
-                // Close modal
-                closeModal(pauseReasonModal);
-                
-                // Refresh orders list
-                fetchManufacturingOrders();
-                
-                // Reset form
-                pauseReasonForm.reset();
-                
-                // Show success message
-                alert('Orden pausada exitosamente');
-            } else {
-                const errorData = await response.text();
-                console.error('Pause Order Error:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    errorBody: errorData
-                });
-                alert(`Error: ${errorData || 'No se pudo pausar la orden'}`);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error de conexión al pausar la orden');
+            alert(`Error: ${errorData || 'No se pudo pausar la orden'}`);
         }
-    });
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error de conexión al pausar la orden');
+    }
+});
 
     // Función para cargar órdenes de fabricación en el selector
     async function populateManufacturingOrdersSelect() {
@@ -196,27 +172,79 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Función para cargar órdenes de limpieza
     async function fetchCleaningOrders() {
-        loadingIndicator.style.display = 'block';
-        errorMessage.style.display = 'none';
-
+        const cleaningOrdersContainer = document.getElementById('cleaningOrdersContainer');
+        
         try {
-            const response = await fetch(`http://192.168.11.25:3000/api/cleaning/?page=${cleaningState.currentPage}&pageSize=${cleaningState.pageSize}`);
+            const response = await fetch('http://192.168.11.25:3000/api/cleaning/');
+            
+            if (!response.ok) {
+                throw new Error('No se pudieron cargar las órdenes de limpieza');
+            }
+
             const data = await response.json();
+            const orders = data.orders || [];
 
-            cleaningState.totalItems = data.total || 0;
-            updatePaginationControls(cleaningState, prevCleaningPage, nextCleaningPage, cleaningPageInfo);
-
+            // Limpiar contenedor
             cleaningOrdersContainer.innerHTML = '';
-            data.orders.forEach(order => {
-                const orderElement = createCleaningOrderElement(order);
+
+            if (orders.length === 0) {
+                cleaningOrdersContainer.innerHTML = `
+                    <div class="cleaning-order-item" style="text-align: center; color: #7f8c8d;">
+                        No hay órdenes de limpieza
+                    </div>
+                `;
+                return;
+            }
+
+            // Poblar órdenes de limpieza
+            orders.forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.classList.add('cleaning-order-item');
+                
+                // Determinar botones de acción según el estado
+                let actionButtons = '';
+                switch(order.status.toUpperCase()) {
+                    case 'CREATED':
+                        actionButtons = `
+                            <div class="order-actions">
+                                <a href="#" class="btn btn-start btn-cleaning-start" data-order-id="${order.order_id}">Iniciar</a>
+                            </div>
+                        `;
+                        break;
+                    case 'STARTED':
+                        actionButtons = `
+                            <div class="order-actions">
+                                <a href="#" class="btn btn-finish btn-cleaning-finish" data-order-id="${order.order_id}">Finalizar</a>
+                            </div>
+                        `;
+                        break;
+                    case 'FINISHED':
+                        actionButtons = '';
+                        break;
+                }
+                
+                orderElement.innerHTML = `
+                    <div class="order-info">
+                        <span class="order-code">${order.order_code}</span>
+                        <span class="order-status status-${order.status.toLowerCase()}">${order.status}</span>
+                    </div>
+                    <div class="order-details">
+                        <div><strong>Tipo:</strong> ${order.cleaning_type}</div>
+                        <div><strong>Área:</strong> ${order.area_name}</div>
+                    </div>
+                    ${actionButtons}
+                `;
+
                 cleaningOrdersContainer.appendChild(orderElement);
             });
+
         } catch (error) {
-            console.error('Error:', error);
-            errorMessage.textContent = 'Error al cargar las órdenes de limpieza';
-            errorMessage.style.display = 'block';
-        } finally {
-            loadingIndicator.style.display = 'none';
+            console.error('Error al cargar órdenes de limpieza:', error);
+            cleaningOrdersContainer.innerHTML = `
+                <div class="cleaning-order-item" style="text-align: center; color: #e74c3c;">
+                    Error al cargar las órdenes de limpieza
+                </div>
+            `;
         }
     }
 
@@ -231,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const formData = {
             order_code: document.getElementById('cleaningOrderCode').value,
-            cleaning_type: 'STANDARD',
+            cleaning_type: document.getElementById('cleaningType').value,
             area_id: 'AREA-001',
             area_name: 'AREA-001',
             description: document.getElementById('cleaningDescription').value,
@@ -302,26 +330,98 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to fetch and display orders
     async function fetchManufacturingOrders() {
+        // Show loading indicator
         loadingIndicator.style.display = 'block';
         errorMessage.style.display = 'none';
 
         try {
-            const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/?page=${manufacturingState.currentPage}&pageSize=${manufacturingState.pageSize}`);
+            const response = await fetch('http://192.168.11.25:3000/api/manufacturing/');
+            
+            if (!response.ok) {
+                throw new Error('No se pudieron cargar las órdenes');
+            }
+
             const data = await response.json();
 
-            manufacturingState.totalItems = data.total || 0;
-            updatePaginationControls(manufacturingState, prevManufacturingPage, nextManufacturingPage, manufacturingPageInfo);
-
+            // Clear previous orders
             ordersContainer.innerHTML = '';
-            data.orders.forEach(order => {
-                const orderElement = createManufacturingOrderElement(order);
+
+            // Check if orders array exists
+            const orders = data.orders || [];
+
+            // Check if orders array is empty
+            if (orders.length === 0) {
+                ordersContainer.innerHTML = `
+                    <div class="order-row" style="text-align: center; color: #7f8c8d;">
+                        No hay órdenes de fabricación
+                    </div>
+                `;
+                return;
+            }
+
+            // Populate orders
+            orders.forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.classList.add('order-row');
+                
+                // Normalize status to uppercase for easier comparison
+                const status = (order.status || '').toUpperCase();
+                
+                // Determine action buttons based on order status
+                let actionButtons = '';
+                switch(status) {
+                    case 'CREATED':
+                        actionButtons = `
+                            <a href="#" class="btn btn-start" data-order-id="${order.order_id}">Iniciar</a>
+                            <a href="#" class="btn btn-edit" data-order-id="${order.order_id}">Editar</a>
+                        `;
+                        break;
+                    case 'STARTED':
+                    case 'RESUMED':
+                        actionButtons = `
+                            <a href="#" class="btn btn-pause" data-order-id="${order.order_id}">Pausar</a>
+                            <a href="#" class="btn btn-finish" data-order-id="${order.order_id}">Finalizar</a>
+                        `;
+                        break;
+                    case 'PAUSED':
+                        actionButtons = `
+                            <a href="#" class="btn btn-resume" data-order-id="${order.order_id}">Reanudar</a>
+                        `;
+                        break;
+                    case 'FINISHED':
+                        actionButtons = 'Completada';
+                        break;
+                    default:
+                        actionButtons = `
+                            <a href="#" class="btn btn-start" data-order-id="${order.order_id}">Iniciar</a>
+                            <a href="#" class="btn btn-edit" data-order-id="${order.order_id}">Editar</a>
+                        `;
+                        console.warn(`Unhandled status: ${order.status}`);
+                }
+                
+                orderElement.innerHTML = `
+                    <div>${order.order_code || 'N/A'}</div>
+                    <div>${order.article_code || 'N/A'}</div>
+                    <div>${order.description || 'Sin descripción'}</div>
+                    <div>${order.quantity || 0}</div>
+                    <div>${order.target_production_rate || 0}</div>
+                    <div>${status}</div>
+                    <div class="action-buttons">
+                        ${actionButtons}
+                    </div>
+                `;
+
                 ordersContainer.appendChild(orderElement);
             });
+
+            // Hide loading indicator
+            loadingIndicator.style.display = 'none';
+
         } catch (error) {
+            // Handle errors
             console.error('Error:', error);
-            errorMessage.textContent = 'Error al cargar las órdenes de fabricación';
+            errorMessage.textContent = error.message;
             errorMessage.style.display = 'block';
-        } finally {
             loadingIndicator.style.display = 'none';
         }
     }
@@ -330,171 +430,103 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchManufacturingOrders();
 
     // Event delegation for order actions
-    ordersContainer.addEventListener('click', handleOrderAction);
-    cleaningOrdersContainer.addEventListener('click', handleOrderAction);
-
-    async function handleOrderAction(e) {
+    ordersContainer.addEventListener('click', async (e) => {
         e.preventDefault();
         const orderId = e.target.dataset.orderId;
-        if (!orderId) return;
 
-        const action = e.target.classList.contains('btn-start') ? 'start' :
-                      e.target.classList.contains('btn-pause') ? 'pause' :
-                      e.target.classList.contains('btn-resume') ? 'resume' :
-                      e.target.classList.contains('btn-finish') ? 'finish' : null;
+        // Start order
+        if (e.target.classList.contains('btn-start')) {
+            try {
+                const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/${orderId}/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
 
-        if (!action) return;
-
-        try {
-            const response = await fetch(`http://192.168.11.25:3000/api/${e.target.closest('#ordersContainer') ? 'manufacturing' : 'cleaning'}/${orderId}/${action}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
-
-            if (response.ok) {
-                if (e.target.closest('#ordersContainer')) {
+                if (response.ok) {
                     fetchManufacturingOrders();
+                    alert('Orden iniciada exitosamente');
                 } else {
-                    fetchCleaningOrders();
+                    // Log more detailed error information
+                    const errorData = await response.text();
+                    console.error('Start Order Error:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorBody: errorData
+                    });
+                    alert(`Error al iniciar: ${errorData || 'No se pudo iniciar la orden'}`);
                 }
-                alert(`Orden ${action === 'start' ? 'iniciada' : action === 'pause' ? 'pausada' : action === 'resume' ? 'reanudada' : 'finalizada'} exitosamente`);
-            } else {
-                const errorData = await response.text();
-                alert(`Error: ${errorData}`);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexión al iniciar la orden');
             }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error de conexión');
         }
-    }
 
-    // Función para crear elementos de orden de fabricación
-    function createManufacturingOrderElement(order) {
-        const orderElement = document.createElement('div');
-        orderElement.classList.add('order-row');
-        
-        const status = (order.status || '').toUpperCase();
-        let actionButtons = '';
-        
-        switch(status) {
-            case 'CREATED':
-                actionButtons = `
-                    <a href="#" class="btn btn-start" data-order-id="${order.order_id}">Iniciar</a>
-                `;
-                break;
-            case 'STARTED':
-            case 'RESUMED':
-                actionButtons = `
-                    <a href="#" class="btn btn-pause" data-order-id="${order.order_id}">Pausar</a>
-                    <a href="#" class="btn btn-finish" data-order-id="${order.order_id}">Finalizar</a>
-                `;
-                break;
-            case 'PAUSED':
-                actionButtons = `
-                    <a href="#" class="btn btn-resume" data-order-id="${order.order_id}">Reanudar</a>
-                `;
-                break;
-            case 'FINISHED':
-                actionButtons = 'Completada';
-                break;
+        // Pause order
+        if (e.target.classList.contains('btn-pause')) {
+            currentOrderId = orderId;
+            openModal(pauseReasonModal);
         }
-        
-        orderElement.innerHTML = `
-            <div>${order.order_code || 'N/A'}</div>
-            <div>${order.article_code || 'N/A'}</div>
-            <div>${order.description || 'Sin descripción'}</div>
-            <div>${order.quantity || 0}</div>
-            <div>${order.target_production_rate || 0}</div>
-            <div>${status}</div>
-            <div class="action-buttons">${actionButtons}</div>
-        `;
 
-        return orderElement;
-    }
+        // Resume order
+        if (e.target.classList.contains('btn-resume')) {
+            try {
+                const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/${orderId}/resume`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
 
-    // Función para crear elementos de orden de limpieza
-    function createCleaningOrderElement(order) {
-        const orderElement = document.createElement('div');
-        orderElement.classList.add('order-row');
-        
-        const status = (order.status || '').toUpperCase();
-        let actionButtons = '';
-        
-        switch(status) {
-            case 'CREATED':
-                actionButtons = `
-                    <a href="#" class="btn btn-start" data-order-id="${order.order_id}">Iniciar</a>
-                `;
-                break;
-            case 'STARTED':
-                actionButtons = `
-                    <a href="#" class="btn btn-finish" data-order-id="${order.order_id}">Finalizar</a>
-                `;
-                break;
-            case 'FINISHED':
-                actionButtons = 'Completada';
-                break;
+                if (response.ok) {
+                    fetchManufacturingOrders();
+                    alert('Orden reanudada exitosamente');
+                } else {
+                    const errorData = await response.text();
+                    console.error('Resume Order Error:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorBody: errorData
+                    });
+                    alert(`Error al reanudar: ${errorData || 'No se pudo reanudar la orden'}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexión al reanudar la orden');
+            }
         }
-        
-        orderElement.innerHTML = `
-            <div>${order.order_code || 'N/A'}</div>
-            <div>${order.area_name || 'N/A'}</div>
-            <div>${order.description || 'Sin descripción'}</div>
-            <div>${status}</div>
-            <div class="action-buttons">${actionButtons}</div>
-        `;
 
-        return orderElement;
-    }
+        // Finish order
+        if (e.target.classList.contains('btn-finish')) {
+            try {
+                const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/${orderId}/finish`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json',
+                    }
+                });
 
-    // Funciones de paginación
-    function updatePaginationControls(state, prevBtn, nextBtn, pageInfo) {
-        prevBtn.disabled = state.currentPage === 1;
-        nextBtn.disabled = state.currentPage * state.pageSize >= state.totalItems;
-        pageInfo.textContent = `Página ${state.currentPage}`;
-    }
-
-    // Event listeners para paginación de fabricación
-    manufacturingPageSize.addEventListener('change', (e) => {
-        manufacturingState.pageSize = parseInt(e.target.value);
-        manufacturingState.currentPage = 1;
-        fetchManufacturingOrders();
-    });
-
-    prevManufacturingPage.addEventListener('click', () => {
-        if (manufacturingState.currentPage > 1) {
-            manufacturingState.currentPage--;
-            fetchManufacturingOrders();
+                if (response.ok) {
+                    fetchManufacturingOrders();
+                    alert('Orden finalizada exitosamente');
+                } else {
+                    const errorData = await response.text();
+                    console.error('Finish Order Error:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorBody: errorData
+                    });
+                    alert(`Error al finalizar: ${errorData || 'No se pudo finalizar la orden'}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexión al finalizar la orden');
+            }
         }
-    });
 
-    nextManufacturingPage.addEventListener('click', () => {
-        if (manufacturingState.currentPage * manufacturingState.pageSize < manufacturingState.totalItems) {
-            manufacturingState.currentPage++;
-            fetchManufacturingOrders();
-        }
-    });
-
-    // Event listeners para paginación de limpieza
-    cleaningPageSize.addEventListener('change', (e) => {
-        cleaningState.pageSize = parseInt(e.target.value);
-        cleaningState.currentPage = 1;
-        fetchCleaningOrders();
-    });
-
-    prevCleaningPage.addEventListener('click', () => {
-        if (cleaningState.currentPage > 1) {
-            cleaningState.currentPage--;
-            fetchCleaningOrders();
-        }
-    });
-
-    nextCleaningPage.addEventListener('click', () => {
-        if (cleaningState.currentPage * cleaningState.pageSize < cleaningState.totalItems) {
-            cleaningState.currentPage++;
-            fetchCleaningOrders();
+        // Edit order
+        if (e.target.classList.contains('btn-edit')) {
+            alert(`Editar orden ${orderId} - Funcionalidad no implementada`);
         }
     });
 

@@ -18,7 +18,8 @@ import {
   AccessTime as AccessTimeIcon,
   Refresh as RefreshIcon,
   BarChart as BarChartIcon,
-  CleaningServices as CleaningIcon
+  CleaningServices as CleaningIcon,
+  PauseCircle as PauseCircleIcon
 } from '@mui/icons-material';
 // Importamos estilos
 import './styles/cremer.scss';
@@ -92,6 +93,50 @@ interface ProductionRecord {
   total: number;
 }
 
+// Interfaz para detalles de pausa
+interface PauseInfo {
+  id: number;
+  reason: string;
+  start_time: string;
+  end_time: string | null;
+  duration_ms: number;
+  duration_minutes: number;
+  comments: string;
+}
+
+// Interfaz para la respuesta detallada de la orden
+interface OrderDetailResponse {
+  order: {
+    id: number;
+    order_code: string;
+    type: string;
+    status: string;
+    start_time: string;
+    end_time: string | null;
+    created_at: string;
+    updated_at: string;
+    notes: string | null;
+  };
+  manufacturing_order: {
+    id: number;
+    article_code: string;
+    description: string;
+    quantity: number;
+    target_production_rate: number;
+    good_units: number;
+    defective_units: number;
+    total_produced: number;
+    completion_percentage: number;
+  };
+  time_stats: {
+    total_duration: number;
+    total_pause_time: number;
+    effective_production_time: number;
+  };
+  pauses: PauseInfo[];
+  recent_production_entries: any[];
+}
+
 // Componente simplificado según diseño de referencia
 const Cremer: React.FC = () => {
   // Estados básicos
@@ -114,6 +159,9 @@ const Cremer: React.FC = () => {
   });
   const [qualityRate, setQualityRate] = useState<number>(0);
   
+  // Estado para almacenar la razón de pausa
+  const [pauseReason, setPauseReason] = useState<string>('');
+  
   // Ref para almacenar el historial de producción del último minuto
   const productionHistoryRef = useRef<ProductionRecord[]>([]);
   // Ref para almacenar el id de la orden activa anterior
@@ -123,16 +171,19 @@ const Cremer: React.FC = () => {
   useEffect(() => {
     loadData();
     
-    // Actualizar datos cada 2 segundos en lugar de 10
+    // Actualizar datos cada 5 segundos en lugar de 2
     const dataInterval = setInterval(() => {
       loadData();
-    }, 2000);
-    
-    // Actualizar cálculos de rendimiento cada 5 segundos en lugar de 15
-    const rateUpdateInterval = setInterval(() => {
-      calculateRealTimeProductionRate();
-      calculateOverallProductionRate();
     }, 5000);
+    
+    // Actualizar cálculos de rendimiento cada 10 segundos
+    const rateUpdateInterval = setInterval(() => {
+      if (activeOrder) {
+        calculateRealTimeProductionRate();
+        calculateOverallProductionRate();
+        calculateQualityRate();
+      }
+    }, 10000);
     
     return () => {
       clearInterval(dataInterval);
@@ -157,12 +208,21 @@ const Cremer: React.FC = () => {
       calculateRealTimeProductionRate();
       calculateOverallProductionRate();
       calculateQualityRate();
+
+      // Cargar la razón de pausa si la orden está pausada
+      if (activeOrder.status === 'PAUSED') {
+        loadPauseReason(activeOrder.order_id);
+      } else {
+        // Limpiar la razón de pausa si no está pausada
+        setPauseReason('');
+      }
     } else {
       // Resetear cuando no hay orden activa
       productionHistoryRef.current = [];
       previousOrderIdRef.current = null;
+      setPauseReason('');
     }
-  }, [counters, activeOrder, qualityRate]);
+  }, [counters, activeOrder]);
 
   // Registrar la producción actual en el historial
   const recordProduction = (total: number) => {
@@ -181,6 +241,45 @@ const Cremer: React.FC = () => {
       productionHistoryRef.current = productionHistoryRef.current.filter(
         record => record.timestamp >= oneMinuteAgo
       );
+    }
+  };
+
+  // Cargar la razón de la última pausa
+  const loadPauseReason = async (orderId: number) => {
+    try {
+      console.log(`Cargando detalles de la orden ${orderId} para obtener razón de pausa...`);
+      
+      const response = await fetch(`${API_BASE_URL}/manufacturing/${orderId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Error en la respuesta: ${response.status}`);
+      }
+      
+      const data: OrderDetailResponse = await response.json();
+      console.log("Datos detallados recibidos:", data);
+      
+      // Verificar si hay pausas registradas
+      if (data.pauses && data.pauses.length > 0) {
+        // Ordenar las pausas por fecha de inicio (la más reciente primero)
+        const sortedPauses = [...data.pauses].sort((a, b) => {
+          const timeA = new Date(a.start_time).getTime();
+          const timeB = new Date(b.start_time).getTime();
+          return timeB - timeA;
+        });
+        
+        // Obtener la razón de la pausa más reciente
+        const latestPause = sortedPauses[0];
+        console.log("Pausa más reciente:", latestPause);
+        
+        // Actualizar el estado con la razón de pausa
+        setPauseReason(latestPause.reason);
+      } else {
+        console.log("No se encontraron pausas registradas");
+        setPauseReason('Sin información de pausa');
+      }
+    } catch (error) {
+      console.error('Error al cargar razón de pausa:', error);
+      setPauseReason('Error al cargar información');
     }
   };
 
@@ -211,31 +310,26 @@ const Cremer: React.FC = () => {
       const oldestRecord = recentRecords[0];
       const latestRecord = recentRecords[recentRecords.length - 1];
       
-      // Calcular diferencia de tiempo en minutos
-      const timeDiffMinutes = (latestRecord.timestamp - oldestRecord.timestamp) / 60000;
+      // Calcular botes en el último minuto
+      const botesEnUltimoMinuto = latestRecord.total - oldestRecord.total;
       
-      // Calcular diferencia en unidades buenas
-      const goodUnitsDiff = counters.countGood - (oldestRecord.total * (qualityRate / 100));
+      // La velocidad real es botes por minuto
+      const velocidadReal = botesEnUltimoMinuto;
       
-      if (timeDiffMinutes > 0) {
-        // Calcular tasa de unidades buenas por minuto
-        const goodRate = goodUnitsDiff / timeDiffMinutes;
+      if (!isNaN(velocidadReal) && isFinite(velocidadReal) && velocidadReal >= 0) {
+        setProductionRates(prev => ({ 
+          ...prev, 
+          realTime: Math.round(velocidadReal)
+        }));
         
-        if (!isNaN(goodRate) && isFinite(goodRate) && goodRate >= 0) {
-          setProductionRates(prev => ({ 
-            ...prev, 
-            realTime: Math.round(goodRate)
-          }));
-          
-          // Actualizar tiempo estimado
-          if (goodRate > 0 && ['STARTED', 'IN_PROGRESS', 'RESUMED'].includes(activeOrder.status)) {
-            const remainingItems = activeOrder.quantity - latestRecord.total;
-            const minutesRemaining = remainingItems / goodRate;
-            const estimatedEnd = new Date();
-            estimatedEnd.setMinutes(estimatedEnd.getMinutes() + minutesRemaining);
-            setEstimatedEndTime(estimatedEnd);
-            setProductionRate(goodRate); // Actualizar el estado productionRate
-          }
+        // Actualizar tiempo estimado
+        if (velocidadReal > 0 && ['STARTED', 'IN_PROGRESS', 'RESUMED'].includes(activeOrder.status)) {
+          const remainingItems = activeOrder.quantity - latestRecord.total;
+          const minutesRemaining = remainingItems / velocidadReal;
+          const estimatedEnd = new Date();
+          estimatedEnd.setMinutes(estimatedEnd.getMinutes() + minutesRemaining);
+          setEstimatedEndTime(estimatedEnd);
+          setProductionRate(velocidadReal);
         }
       }
     }
@@ -255,34 +349,21 @@ const Cremer: React.FC = () => {
       return;
     }
   
-    const history = productionHistoryRef.current;
-    if (history.length < 2) return;
-  
-    // Calcular desde el inicio de la orden de producción
     const startTime = new Date(activeOrder.time.start_time).getTime();
     const now = Date.now();
-    
-    // Filtrar registros desde el inicio de la orden
-    const orderRecords = history.filter(record => record.timestamp >= startTime);
-    if (orderRecords.length < 2) return;
-    
-    const firstRecord = orderRecords[0];
-    const lastRecord = orderRecords[orderRecords.length - 1];
-    
-    // Calcular tiempo transcurrido en minutos
     const timeDiffMinutes = (now - startTime) / 60000;
     
     if (timeDiffMinutes > 0) {
-      // Calcular tasas promedio
-      const totalRate = lastRecord.total / timeDiffMinutes;
-      const goodRate = (lastRecord.total * (qualityRate / 100)) / timeDiffMinutes;
+      // Velocidad media = total de botes / tiempo transcurrido en minutos
+      const velocidadMediaTotal = counters.total / timeDiffMinutes;
+      const velocidadMediaBuenos = counters.countGood / timeDiffMinutes;
       
-      if (!isNaN(totalRate) && isFinite(totalRate) && totalRate >= 0) {
+      if (!isNaN(velocidadMediaTotal) && isFinite(velocidadMediaTotal) && velocidadMediaTotal >= 0) {
         setProductionRates(prev => ({ 
           ...prev, 
           overall: {
-            total: Math.round(totalRate),
-            good: Math.round(goodRate)
+            total: Math.round(velocidadMediaTotal),
+            good: Math.round(velocidadMediaBuenos)
           }
         }));
       }
@@ -373,6 +454,13 @@ const Cremer: React.FC = () => {
         
         // Actualizar estado de máquina solo basado en la orden de producción
         updateMachineStatus(latestOrder.status);
+        
+        // Si la orden está pausada, cargar la razón de pausa
+        if (latestOrder.status === 'PAUSED') {
+          loadPauseReason(latestOrder.order_id);
+        } else {
+          setPauseReason('');
+        }
       } else {
         // No hay órdenes activas
         console.log("No se encontraron órdenes activas");
@@ -381,6 +469,7 @@ const Cremer: React.FC = () => {
         setCounters({ countGood: 0, countBad: 0, total: 0, progress: 0 });
         setProductionRate(0);
         setEstimatedEndTime(null);
+        setPauseReason('');
         
         // Siempre rojo cuando no hay orden de producción activa
         setMachineStatus({ verde: false, amarillo: false, rojo: true });
@@ -388,6 +477,7 @@ const Cremer: React.FC = () => {
     } catch (error) {
       console.error('Error al cargar orden activa:', error);
       setActiveOrder(null);
+      setPauseReason('');
       // Error = semáforo en rojo
       setMachineStatus({ verde: false, amarillo: false, rojo: true });
     }
@@ -598,6 +688,33 @@ const Cremer: React.FC = () => {
           )}
         </Stack>
         
+        {/* Mostrar razón de pausa cuando la orden está pausada */}
+        {activeOrder && activeOrder.status === 'PAUSED' && pauseReason && (
+          <Box 
+            sx={{ 
+              display: 'flex',
+              alignItems: 'center',
+              mb: 1.5,
+              backgroundColor: '#fff8e1',
+              p: 1,
+              borderRadius: 1,
+              border: '1px solid #ffe0b2'
+            }}
+          >
+            <PauseCircleIcon sx={{ fontSize: 16, color: '#ff9800', mr: 0.5 }} />
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: '#e65100',
+                fontSize: '0.75rem',
+                fontWeight: 'medium'
+              }}
+            >
+              Motivo de pausa: {pauseReason}
+            </Typography>
+          </Box>
+        )}
+        
         {activeOrder ? (
           <>
             {/* Nombre del producto y progreso */}
@@ -699,193 +816,193 @@ const Cremer: React.FC = () => {
     Vel. Actual
   </Typography>
   <Typography 
-    variant="body2" 
-    sx={{ 
-      ml: 0.5, 
-      color: '#212121',
-      fontWeight: 'medium' 
-    }}
-  >
-    {activeOrder?.status === 'PAUSED' 
-      ? 'Pausada' 
-      : productionRates.realTime > 0 
-        ? `${productionRates.realTime} bpm` 
-        : '—'}
-  </Typography>
+  variant="body2" 
+  sx={{ 
+    ml: 0.5, 
+    color: '#212121',
+    fontWeight: 'medium' 
+  }}
+>
+  {activeOrder?.status === 'PAUSED' 
+    ? 'Pausada' 
+    : productionRates.realTime > 0 
+      ? `${productionRates.realTime} bpm` 
+      : '—'}
+</Typography>
 </Box>
 
 {/* Velocidad media */}
 <Box display="flex" alignItems="center">
-  <SpeedIcon sx={{ fontSize: 14, color: '#666666', mr: 0.5 }} />
-  <Typography variant="caption" color="text.secondary">
-    Vel. Media
-  </Typography>
-  <Typography 
-    variant="body2" 
-    sx={{ 
-      ml: 0.5, 
-      color: '#212121',
-      fontWeight: 'medium' 
-    }}
-  >
-    {activeOrder?.status === 'PAUSED' 
-      ? 'Pausada' 
-      : productionRates.overall && productionRates.overall.good > 0 
-        ? `${productionRates.overall.good} bpm` 
-        : '—'}
-  </Typography>
+<SpeedIcon sx={{ fontSize: 14, color: '#666666', mr: 0.5 }} />
+<Typography variant="caption" color="text.secondary">
+  Vel. Media
+</Typography>
+<Typography 
+  variant="body2" 
+  sx={{ 
+    ml: 0.5, 
+    color: '#212121',
+    fontWeight: 'medium' 
+  }}
+>
+  {activeOrder?.status === 'PAUSED' 
+    ? 'Pausada' 
+    : productionRates.overall && productionRates.overall.good > 0 
+      ? `${productionRates.overall.good} bpm` 
+      : '—'}
+</Typography>
 </Box>
 
-              {/* Calidad */}
-              <Box display="flex" alignItems="center">
-                <BarChartIcon sx={{ fontSize: 14, color: '#4caf50', mr: 0.5 }} />
-                <Typography variant="caption" color="text.secondary">
-                  Cal.
-                </Typography>
-                <Typography 
-                  variant="body2" 
-                  sx={{ ml: 0.5, color: '#4caf50', fontWeight: 'medium' }}
-                >
-                  {qualityRate > 0 ? `${Math.round(qualityRate)}%` : '—'}
-                </Typography>
-              </Box>
-              
-              {/* Fin estimado */}
-              <Box display="flex" alignItems="center">
-                <AccessTimeIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
-                <Typography variant="caption" color="text.secondary">
-                  Fin
-                </Typography>
-                <Typography 
-                  variant="body2" 
-                  sx={{ ml: 0.5, color: '#212121' }}
-                >
-                  {(activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED') && productionRate > 0 ? formatTime(estimatedEndTime) : '—'}
-                </Typography>
-              </Box>
+            {/* Calidad */}
+            <Box display="flex" alignItems="center">
+              <BarChartIcon sx={{ fontSize: 14, color: '#4caf50', mr: 0.5 }} />
+              <Typography variant="caption" color="text.secondary">
+                Cal.
+              </Typography>
+              <Typography 
+                variant="body2" 
+                sx={{ ml: 0.5, color: '#4caf50', fontWeight: 'medium' }}
+              >
+                {qualityRate > 0 ? `${Math.round(qualityRate)}%` : '—'}
+              </Typography>
             </Box>
             
-            {/* Mostrar orden de limpieza activa si existe */}
-            {activeCleaningOrder && (
-              <>
-                <Divider sx={{ my: 1.5 }} />
-                
-                <Box 
-                  sx={{ 
-                    display: 'flex',
-                    alignItems: 'center',
-                    mb: 0.5,
-                    backgroundColor: '#fff9c4',
-                    p: 1,
-                    borderRadius: 1,
-                  }}
-                >
-                  <CleaningIcon sx={{ fontSize: 16, color: '#ff9800', mr: 1 }} />
-                  <Box flexGrow={1}>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ 
-                        color: '#424242',
-                        fontSize: '0.75rem',
-                        fontWeight: 'medium'
-                      }}
-                    >
-                      Limpieza en curso: {activeCleaningOrder.cleaning_type}
-                    </Typography>
-                    <Typography 
-                      variant="caption" 
-                      sx={{ 
-                        color: '#757575',
-                        fontSize: '0.7rem',
-                        display: 'block'
-                      }}
-                    >
-                      {activeCleaningOrder.area_name} • Tiempo restante: {getCleaningTimeRemaining()}
-                    </Typography>
-                  </Box>
-                </Box>
-              </>
-            )}
-          </>
-        ) : activeCleaningOrder ? (
-          // Vista principal cuando solo hay orden de limpieza activa
-          <Box>
-            <Box 
-              sx={{ 
-                display: 'flex',
-                alignItems: 'center',
-                mb: 2,
-                backgroundColor: '#fff9c4',
-                p: 1,
-                borderRadius: 1,
-              }}
-            >
-              <CleaningIcon sx={{ fontSize: 20, color: '#ff9800', mr: 1 }} />
-              <Box flexGrow={1}>
-                <Typography 
-                  variant="body1" 
-                  sx={{ 
-                    color: '#424242',
-                    fontWeight: 'medium'
-                  }}
-                >
-                  Limpieza en curso
-                </Typography>
-                
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    color: '#424242',
-                    fontSize: '0.875rem',
-                    mt: 0.5
-                  }}
-                >
-                  {activeCleaningOrder.cleaning_type} - {activeCleaningOrder.description}
-                </Typography>
-                
-                <Box mt={1} display="flex" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2" color="text.secondary">
-                    {activeCleaningOrder.area_name}
-                  </Typography>
+            {/* Fin estimado */}
+            <Box display="flex" alignItems="center">
+              <AccessTimeIcon sx={{ fontSize: 14, color: '#9e9e9e', mr: 0.5 }} />
+              <Typography variant="caption" color="text.secondary">
+                Fin
+              </Typography>
+              <Typography 
+                variant="body2" 
+                sx={{ ml: 0.5, color: '#212121' }}
+              >
+                {(activeOrder.status === 'STARTED' || activeOrder.status === 'IN_PROGRESS' || activeOrder.status === 'RESUMED') && productionRate > 0 ? formatTime(estimatedEndTime) : '—'}
+              </Typography>
+            </Box>
+          </Box>
+          
+          {/* Mostrar orden de limpieza activa si existe */}
+          {activeCleaningOrder && (
+            <>
+              <Divider sx={{ my: 1.5 }} />
+              
+              <Box 
+                sx={{ 
+                  display: 'flex',
+                  alignItems: 'center',
+                  mb: 0.5,
+                  backgroundColor: '#fff9c4',
+                  p: 1,
+                  borderRadius: 1,
+                }}
+              >
+                <CleaningIcon sx={{ fontSize: 16, color: '#ff9800', mr: 1 }} />
+                <Box flexGrow={1}>
                   <Typography 
                     variant="body2" 
-                    fontWeight="medium" 
-                    sx={{ color: '#ff9800' }}
+                    sx={{ 
+                      color: '#424242',
+                      fontSize: '0.75rem',
+                      fontWeight: 'medium'
+                    }}
                   >
-                    Tiempo restante: {getCleaningTimeRemaining()}
+                    Limpieza en curso: {activeCleaningOrder.cleaning_type}
+                  </Typography>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: '#757575',
+                      fontSize: '0.7rem',
+                      display: 'block'
+                    }}
+                  >
+                    {activeCleaningOrder.area_name} • Tiempo restante: {getCleaningTimeRemaining()}
                   </Typography>
                 </Box>
               </Box>
-            </Box>
-            
-            <Box 
-              sx={{ 
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                mt: 2,
-                px: 1
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                Operador: {activeCleaningOrder.operator_name || 'No asignado'}
+            </>
+          )}
+        </>
+      ) : activeCleaningOrder ? (
+        // Vista principal cuando solo hay orden de limpieza activa
+        <Box>
+          <Box 
+            sx={{ 
+              display: 'flex',
+              alignItems: 'center',
+              mb: 2,
+              backgroundColor: '#fff9c4',
+              p: 1,
+              borderRadius: 1,
+            }}
+          >
+            <CleaningIcon sx={{ fontSize: 20, color: '#ff9800', mr: 1 }} />
+            <Box flexGrow={1}>
+              <Typography 
+                variant="body1" 
+                sx={{ 
+                  color: '#424242',
+                  fontWeight: 'medium'
+                }}
+              >
+                Limpieza en curso
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Duración estimada: {activeCleaningOrder.estimated_duration_minutes} min
+              
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: '#424242',
+                  fontSize: '0.875rem',
+                  mt: 0.5
+                }}
+              >
+                {activeCleaningOrder.cleaning_type} - {activeCleaningOrder.description}
               </Typography>
+              
+              <Box mt={1} display="flex" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2" color="text.secondary">
+                  {activeCleaningOrder.area_name}
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  fontWeight="medium" 
+                  sx={{ color: '#ff9800' }}
+                >
+                  Tiempo restante: {getCleaningTimeRemaining()}
+                </Typography>
+              </Box>
             </Box>
           </Box>
-        ) : (
-          // Mensaje cuando no hay orden activa
-          <Box display="flex" justifyContent="center" alignItems="center" height="100px">
+          
+          <Box 
+            sx={{ 
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mt: 2,
+              px: 1
+            }}
+          >
             <Typography variant="body2" color="text.secondary">
-              No hay órdenes activas
+              Operador: {activeCleaningOrder.operator_name || 'No asignado'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Duración estimada: {activeCleaningOrder.estimated_duration_minutes} min
             </Typography>
           </Box>
-        )}
-      </CardContent>
-    </Card>
-  );
+        </Box>
+      ) : (
+        // Mensaje cuando no hay orden activa
+        <Box display="flex" justifyContent="center" alignItems="center" height="100px">
+          <Typography variant="body2" color="text.secondary">
+            No hay órdenes activas
+          </Typography>
+        </Box>
+      )}
+    </CardContent>
+  </Card>
+);
 };
 
 export default Cremer;
