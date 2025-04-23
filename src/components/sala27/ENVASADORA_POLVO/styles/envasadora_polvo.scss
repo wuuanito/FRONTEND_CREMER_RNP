@@ -1,0 +1,115 @@
+// Variables alineadas con App.scss
+$primary-color: #1b9736;
+$primary-light: lighten($primary-color, 10%);
+$primary-dark: darken($primary-color, 10%);
+$success-color: #22c55e;
+$warning-color: #f59e0b;
+$error-color: #ef4444;
+$info-color: #3b82f6;
+$card-bg: #ffffff;
+
+.MuiCard-root {
+  background-color: $card-bg !important;
+}
+
+.MuiLinearProgress-root {
+  &.MuiLinearProgress-colorPrimary {
+    background-color: rgba(27, 151, 54, 0.1);
+    
+    .MuiLinearProgress-bar {
+      background-color: $primary-color;
+    }
+  }
+}
+
+// Estilos para los contadores
+.counter-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.75rem;
+  
+  .counter-item {
+    text-align: center;
+    
+    .counter-label {
+      font-size: 0.75rem;
+      color: rgba(0, 0, 0, 0.6);
+      margin-bottom: 0.25rem;
+    }
+    
+    .counter-value {
+      font-size: 1.25rem;
+      font-weight: 600;
+      
+      &.good {
+        color: $success-color;
+      }
+      
+      &.bad {
+        color: $error-color;
+      }
+    }
+  }
+}
+
+// Status chips
+.status-chip {
+  &.good {
+    background-color: $primary-color;
+    color: white;
+  }
+  
+  &.warning {
+    background-color: $warning-color;
+    color: white;
+  }
+  
+  &.error {
+    background-color: $error-color;
+    color: white;
+  }
+}
+
+// Semáforo
+.semaphore {
+  display: flex;
+  align-items: center;
+  
+  .light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 4px;
+    
+    &.red {
+      background-color: $error-color;
+    }
+    
+    &.yellow {
+      background-color: $warning-color;
+    }
+    
+    &.green {
+      background-color: $success-color;
+      &.active {
+        box-shadow: 0 0 5px $success-color;
+      }
+    }
+    
+    &.inactive {
+      background-color: #e0e0e0;
+    }
+  }
+}
+
+// Asegurarnos que la tarjeta no se recorta
+.machine-card {
+  height: auto !important;
+  min-height: 175px !important;
+  
+  .MuiCardContent-root {
+    height: auto !important;
+    padding-bottom: 16px !important;
+  }
+}

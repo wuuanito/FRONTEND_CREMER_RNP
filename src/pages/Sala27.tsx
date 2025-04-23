@@ -3,8 +3,14 @@ import { Box, Grid, Typography, Modal, IconButton } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 import CremerDetails from "../components/sala27/CREMER/CremerDetails"
 import Cremer from "../components/sala27/CREMER/cremer";
+import Envasadora_polvo from "../components/sala27/ENVASADORA_POLVO/envasadora_polvo";
+import Ensobradora_dos from "../components/sala27/ENSOBRADORA_2/ensobradora_2";
+import Llenadora_jarabes from "../components/sala27/LLENADORA_JARABES/llenadora_jarabes";
+import EnvasadoraPolvoDetails from "../components/sala27/ENVASADORA_POLVO/EnvasadoraPolvoDetails";
+import Ensobradora2Details from "../components/sala27/ENSOBRADORA_2/ensobradora_2_details";
+import JarabesDetails from "../components/sala27/LLENADORA_JARABES/jarabes";
+ 
 
-// Updated machine names in the correct order
 const machineNames = [
   "Monolab", "Marquesini", "Tecnomaco", "Cremer", 
   "Envasadora Polvo", "Ensobradora 2", "Ensobradora 1", "Flashes",
@@ -30,6 +36,12 @@ const Sala27: React.FC = () => {
     switch (machineName) {
       case "Cremer":
         return <Cremer />;
+      case "Envasadora Polvo":
+        return <Envasadora_polvo />;
+      case "Ensobradora 2":
+        return <Ensobradora_dos />;
+      case "Jarabes":
+        return <Llenadora_jarabes />;
       default:
         // Placeholder para otras máquinas con estilo similar a Cremer
         return (
@@ -48,6 +60,31 @@ const Sala27: React.FC = () => {
             </Typography>
             <Typography variant="body2" color="text.secondary" mt={1}>
               Máquina sin datos
+            </Typography>
+          </Box>
+        );
+    }
+  };
+
+  // Función para renderizar el componente de detalles según la máquina seleccionada
+  const renderMachineDetails = () => {
+    switch (selectedMachine) {
+      case "Cremer":
+        return <CremerDetails />;
+      case "Envasadora Polvo":
+        return <EnvasadoraPolvoDetails />;
+      case "Ensobradora 2":
+        return <Ensobradora2Details />;
+      case "Jarabes":
+        return <JarabesDetails />;
+      default:
+        return (
+          <Box sx={{ p: 3, textAlign: 'center' }}>
+            <Typography variant="h5" gutterBottom>
+              Detalles de {selectedMachine}
+            </Typography>
+            <Typography variant="body1">
+              Información no disponible para esta máquina.
             </Typography>
           </Box>
         );
@@ -126,18 +163,7 @@ const Sala27: React.FC = () => {
             <CloseIcon />
           </IconButton>
           
-          {selectedMachine === "Cremer" ? (
-            <CremerDetails />
-          ) : (
-            <Box sx={{ p: 3, textAlign: 'center' }}>
-              <Typography variant="h5" gutterBottom>
-                Detalles de {selectedMachine}
-              </Typography>
-              <Typography variant="body1">
-                Información no disponible para esta máquina.
-              </Typography>
-            </Box>
-          )}
+          {renderMachineDetails()}
         </Box>
       </Modal>
     </Box>
