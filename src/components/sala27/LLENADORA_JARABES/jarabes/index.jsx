@@ -42,7 +42,7 @@ import NotificationsMenu from './NotificationsMenu';
 import DashboardReports from './DashboardReports';
 
 // Import API constants
-import { API_BASE_URL, SOCKET_URL, MANUFACTURING_URL, CLEANING_URL } from '../../ENSOBRADORA_2/constants/api';
+import { API_BASE_URL, SOCKET_URL, MANUFACTURING_URL, CLEANING_URL } from '../../LLENADORA_JARABES/constants/api';
 
 // Import interfaces/types
 import { 

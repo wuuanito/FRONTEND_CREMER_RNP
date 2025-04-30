@@ -611,7 +611,7 @@ const Cremer: React.FC = () => {
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
           <Box display="flex" alignItems="center">
             <Typography variant="subtitle1" fontWeight="500" sx={{ color: '#212121' }}>
-              Cremer
+Cremer
             </Typography>
             <Tooltip title="Actualizar datos">
               <IconButton 

@@ -199,6 +199,29 @@
             </form>
         </div>
     </div>
+    <!-- Modal para Finalizar Orden -->
+<div id="finishOrderModal" class="modal" role="dialog" aria-labelledby="finishOrderTitle">
+    <div class="modal-content">
+        <button class="close-modal" aria-label="Cerrar">&times;</button>
+        <h2 id="finishOrderTitle">Finalizar Orden de Fabricación</h2>
+        <form id="finishOrderForm">
+            <div class="form-group">
+                <label for="operatorRegisteredUnits">Botes Registrados por el Operario <span class="required">*</span></label>
+                <input type="number" id="operatorRegisteredUnits" name="operator_registered_units" 
+                       required min="0" placeholder="Introducir cantidad de botes contados manualmente">
+                <small class="form-hint">Introduzca el número de botes contados manualmente</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="finishNotes">Notas Adicionales</label>
+                <textarea id="finishNotes" name="notes" 
+                          placeholder="Notas sobre la finalización" maxlength="500"></textarea>
+            </div>
+            
+            <button type="submit" class="submit-btn">Finalizar Orden</button>
+        </form>
+    </div>
+</div>
 
     <script src="script.js"></script>
 </body>

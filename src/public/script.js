@@ -1,3 +1,19 @@
+function logResponseToConsole(response, label = "Respuesta del servidor") {
+    console.log("===== " + label + " =====");
+    console.log("Respuesta completa:", response);
+    
+    // Verificar campos específicos
+    if (response.production) {
+        console.log("Datos de producción:");
+        console.log("- total_produced:", response.production.total_produced);
+        console.log("- operator_registered_units:", response.production.operator_registered_units);
+        console.log("- unit_discrepancy:", response.production.unit_discrepancy);
+        console.log("- discrepancy_percentage:", response.production.discrepancy_percentage);
+    } else {
+        console.warn("No se encontró el objeto 'production' en la respuesta");
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const ordersContainer = document.getElementById('ordersContainer');
     const loadingIndicator = document.getElementById('loadingIndicator');
@@ -10,6 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtns = document.querySelectorAll('.close-modal');
     const createOrderForm = document.getElementById('createOrderForm');
     const pauseReasonForm = document.getElementById('pauseReasonForm');
+    const finishOrderForm = document.getElementById('finishOrderForm');
+
 
     // Current order ID for pause/resume/start/finish actions
     let currentOrderId = null;
@@ -63,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            const response = await fetch('http://192.168.11.25:3001/api/manufacturing/', {
+            const response = await fetch('http://192.168.11.25:3003/api/manufacturing/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -86,6 +104,75 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Error de conexión al crear la orden');
         }
     });
+    finishOrderForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (!currentOrderId) {
+            alert('Error: No se ha seleccionado una orden');
+            return;
+        }
+
+        const operatorRegisteredUnits = document.getElementById('operatorRegisteredUnits').value;
+        const notes = document.getElementById('finishNotes').value;
+
+        if (!operatorRegisteredUnits || operatorRegisteredUnits < 0) {
+            alert('Por favor, introduce un número válido de botes registrados por el operario');
+            return;
+        }
+
+        const formData = {
+            operator_registered_units: parseInt(operatorRegisteredUnits),
+            notes: notes
+        };
+
+        try {
+            const response = await fetch(`http://192.168.11.25:3003/api/manufacturing/${currentOrderId}/finish`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            });
+
+            if (response.ok) {
+                closeModal(finishOrderModal);
+                finishOrderForm.reset();
+                
+                // Obtener y procesar la respuesta correctamente
+                const data = await response.json();
+                
+                // Registrar la respuesta para depuración
+                logResponseToConsole(data, "Finalización de orden");
+                
+                // Verificar que los datos existen antes de usarlos
+                const totalProduced = data.production?.total_produced ?? 0;
+                const registeredUnits = data.production?.operator_registered_units ?? 0;
+                const discrepancy = data.production?.unit_discrepancy ?? 0;
+                const discrepancyPercentage = data.production?.discrepancy_percentage ?? 0;
+                
+                // Mostrar mensaje con formato mejorado y manejo de valores nulos
+                alert(`Orden finalizada exitosamente:
+            - Botes registrados automáticamente: ${totalProduced}
+            - Botes registrados por operario: ${registeredUnits}
+            - Discrepancia: ${discrepancy} unidades (${typeof discrepancyPercentage === 'number' ? discrepancyPercentage.toFixed(2) : 0}%)`);
+                
+                // Actualizar la lista de órdenes
+                fetchManufacturingOrders();
+            }
+             else {
+                const errorData = await response.text();
+                console.error('Finish Order Error:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    errorBody: errorData
+                });
+                alert(`Error al finalizar: ${errorData || 'No se pudo finalizar la orden'}`);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error de conexión al finalizar la orden');
+        }
+    });
 
     // Handle pause reason form submission
    // Handle pause reason form submission
@@ -105,7 +192,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
 
     try {
         // Send POST request to pause order
-        const response = await fetch(`http://192.168.11.25:3001/api/manufacturing/${currentOrderId}/pause`, {
+        const response = await fetch(`http://192.168.11.25:3003/api/manufacturing/${currentOrderId}/pause`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -146,7 +233,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         const select = document.getElementById('associatedManufacturingOrder');
         
         try {
-            const response = await fetch('http://192.168.11.25:3001/api/manufacturing/');
+            const response = await fetch('http://192.168.11.25:3003/api/manufacturing/');
             
             if (!response.ok) {
                 throw new Error('No se pudieron cargar las órdenes de fabricación');
@@ -175,7 +262,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         const cleaningOrdersContainer = document.getElementById('cleaningOrdersContainer');
         
         try {
-            const response = await fetch('http://192.168.11.25:3001/api/cleaning/');
+            const response = await fetch('http://192.168.11.25:3003/api/cleaning/');
             
             if (!response.ok) {
                 throw new Error('No se pudieron cargar las órdenes de limpieza');
@@ -267,7 +354,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         };
 
         try {
-            const response = await fetch('http://192.168.11.25:3001/api/cleaning/', {
+            const response = await fetch('http://192.168.11.25:3003/api/cleaning/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -304,7 +391,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         if (!action) return;
 
         try {
-            const response = await fetch(`http://192.168.11.25:3001/api/cleaning/${orderId}/${action}`, {
+            const response = await fetch(`http://192.168.11.25:3003/api/cleaning/${orderId}/${action}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -335,7 +422,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         errorMessage.style.display = 'none';
 
         try {
-            const response = await fetch('http://192.168.11.25:3001/api/manufacturing/');
+            const response = await fetch('http://192.168.11.25:3003/api/manufacturing/');
             
             if (!response.ok) {
                 throw new Error('No se pudieron cargar las órdenes');
@@ -433,11 +520,13 @@ pauseReasonForm.addEventListener('submit', async (e) => {
     ordersContainer.addEventListener('click', async (e) => {
         e.preventDefault();
         const orderId = e.target.dataset.orderId;
+        
+        if (!orderId) return;
 
         // Start order
         if (e.target.classList.contains('btn-start')) {
             try {
-                const response = await fetch(`http://192.168.11.25:3001/api/manufacturing/${orderId}/start`, {
+                const response = await fetch(`http://192.168.11.25:3003/api/manufacturing/${orderId}/start`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -472,7 +561,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         // Resume order
         if (e.target.classList.contains('btn-resume')) {
             try {
-                const response = await fetch(`http://192.168.11.25:3001/api/manufacturing/${orderId}/resume`, {
+                const response = await fetch(`http://192.168.11.25:3003/api/manufacturing/${orderId}/resume`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -497,31 +586,10 @@ pauseReasonForm.addEventListener('submit', async (e) => {
             }
         }
 
-        // Finish order
+        // Finish order - Modificado para abrir el modal
         if (e.target.classList.contains('btn-finish')) {
-            try {
-                const response = await fetch(`http://192.168.11.25:3001/api/manufacturing/${orderId}/finish`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json',
-                    }
-                });
-
-                if (response.ok) {
-                    fetchManufacturingOrders();
-                    alert('Orden finalizada exitosamente');
-                } else {
-                    const errorData = await response.text();
-                    console.error('Finish Order Error:', {
-                        status: response.status,
-                        statusText: response.statusText,
-                        errorBody: errorData
-                    });
-                    alert(`Error al finalizar: ${errorData || 'No se pudo finalizar la orden'}`);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error de conexión al finalizar la orden');
-            }
+            currentOrderId = orderId;
+            openModal(finishOrderModal);
         }
 
         // Edit order
@@ -529,6 +597,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
             alert(`Editar orden ${orderId} - Funcionalidad no implementada`);
         }
     });
+});
 
     // Función para buscar órdenes
     async function searchOrders(searchTerm) {
@@ -603,4 +672,3 @@ pauseReasonForm.addEventListener('submit', async (e) => {
             searchResults.style.display = 'none';
         }
     });
-});
