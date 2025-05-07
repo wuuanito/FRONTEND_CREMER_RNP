@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            const response = await fetch('http://192.168.11.25:3003/api/manufacturing/', {
+            const response = await fetch('http://192.168.11.25:3000/api/manufacturing/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            const response = await fetch(`http://192.168.11.25:3003/api/manufacturing/${currentOrderId}/finish`, {
+            const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/${currentOrderId}/finish`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -192,7 +192,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
 
     try {
         // Send POST request to pause order
-        const response = await fetch(`http://192.168.11.25:3003/api/manufacturing/${currentOrderId}/pause`, {
+        const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/${currentOrderId}/pause`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -233,7 +233,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         const select = document.getElementById('associatedManufacturingOrder');
         
         try {
-            const response = await fetch('http://192.168.11.25:3003/api/manufacturing/');
+            const response = await fetch('http://192.168.11.25:3000/api/manufacturing/');
             
             if (!response.ok) {
                 throw new Error('No se pudieron cargar las órdenes de fabricación');
@@ -262,7 +262,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         const cleaningOrdersContainer = document.getElementById('cleaningOrdersContainer');
         
         try {
-            const response = await fetch('http://192.168.11.25:3003/api/cleaning/');
+            const response = await fetch('http://192.168.11.25:3000/api/cleaning/');
             
             if (!response.ok) {
                 throw new Error('No se pudieron cargar las órdenes de limpieza');
@@ -354,7 +354,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         };
 
         try {
-            const response = await fetch('http://192.168.11.25:3003/api/cleaning/', {
+            const response = await fetch('http://192.168.11.25:3000/api/cleaning/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -391,7 +391,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         if (!action) return;
 
         try {
-            const response = await fetch(`http://192.168.11.25:3003/api/cleaning/${orderId}/${action}`, {
+            const response = await fetch(`http://192.168.11.25:3000/api/cleaning/${orderId}/${action}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -422,7 +422,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         errorMessage.style.display = 'none';
 
         try {
-            const response = await fetch('http://192.168.11.25:3003/api/manufacturing/');
+            const response = await fetch('http://192.168.11.25:3000/api/manufacturing/');
             
             if (!response.ok) {
                 throw new Error('No se pudieron cargar las órdenes');
@@ -526,7 +526,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         // Start order
         if (e.target.classList.contains('btn-start')) {
             try {
-                const response = await fetch(`http://192.168.11.25:3003/api/manufacturing/${orderId}/start`, {
+                const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/${orderId}/start`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -561,7 +561,7 @@ pauseReasonForm.addEventListener('submit', async (e) => {
         // Resume order
         if (e.target.classList.contains('btn-resume')) {
             try {
-                const response = await fetch(`http://192.168.11.25:3003/api/manufacturing/${orderId}/resume`, {
+                const response = await fetch(`http://192.168.11.25:3000/api/manufacturing/${orderId}/resume`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
